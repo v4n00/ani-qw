@@ -3,7 +3,7 @@
 1. Run `make test integration` and `python3 tests/installer_test.py`. Check the UI fixture in Chromium.
 2. Set `extension/manifest.json` to the release version. Review source changes, notices and README images for private information.
 3. Build `bash scripts/package.sh amd64` and `bash scripts/package.sh arm64`; inspect the archives and `dist/SHA256SUMS`.
-4. Commit the intended files, then push `master`. Push a matching tag, for example `v0.1.6` for extension version `0.1.6`.
+4. Commit the intended files, then push `master`. Push a matching tag, for example `v0.16.0` for extension version `0.16.0`.
 5. The workflow tests, packages both architectures, and creates a GitHub Release with binary bundles, extension ZIP, source archive and checksums. A tag/version mismatch fails publication.
 6. Test the documented installer against that published release from a fresh user account.
 

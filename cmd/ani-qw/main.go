@@ -19,7 +19,6 @@ import (
 
 const protocolVersion = 1
 const hostName = "co.aniqw.player"
-const cacheLimit int64 = 20 * 1024 * 1024 * 1024
 
 type paths struct{ Runtime, Cache, State string }
 
@@ -102,7 +101,7 @@ func main() {
 	case "install", "uninstall", "doctor":
 		err = installation(mode, os.Args[2:])
 	case "version", "--version":
-		fmt.Printf("Ani-QW 0.1.0 protocol %d\n", protocolVersion)
+		fmt.Printf("Ani-QW 0.16.0 protocol %d\n", protocolVersion)
 	case "native":
 		err = runNative()
 	default:

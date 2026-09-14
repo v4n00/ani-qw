@@ -6,13 +6,13 @@
   const waiting = new Map();
   let panelPosition = null, dismissed = false, drag = null, launchMediaId = null, closeTimer = null, stoppingSession = null;
   const css = `
-    :host{--bg:rgb(var(--color-foreground,250,250,250));--text:rgb(var(--color-text,92,114,138));--blue:rgb(var(--color-blue,61,180,242));--soft:rgb(var(--color-background,237,241,245));font-family:inherit;font-size:14px;line-height:1.5;color:var(--text);text-align:left;color-scheme:normal}
-    *{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer;border:0;color:inherit;background:transparent;border-radius:4px}button:disabled{cursor:default;opacity:.45}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}button:hover:not(:disabled){filter:brightness(1.08)}
-    .split{display:flex;width:100%;height:35px;border-radius:3px;overflow:hidden;background:var(--blue);color:white}.split button{color:white}.play{flex:1}.arrow{width:34px;border-radius:0;background:rgba(255,255,255,.14)}.chevron{font-family:element-icons;font-size:14px;font-style:normal}.chevron.fallback{display:inline-block;font-size:0;width:7px;height:7px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:translateY(-2px) rotate(45deg)}.wrap{position:relative}.menu{animation:menu-in .16s ease-out;transform-origin:top left;position:absolute;top:43px;left:0;width:270px;background:var(--bg);padding:14px;z-index:200;box-shadow:0 6px 24px #0003;border-radius:6px}.menu[hidden]{display:none}label{display:flex;align-items:center;gap:10px}input[type=checkbox]{accent-color:var(--blue);width:16px;height:16px}.episodes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:220px;overflow:auto;margin:12px 0}.episode{background:var(--soft);padding:7px}.episode.current{background:var(--blue);color:white}.episode.seen{background:rgba(75,180,140,.18);color:#59b99a;box-shadow:inset 0 0 0 1px #59b99a40}.episode:disabled{background:transparent;color:var(--text);opacity:.35;text-decoration:line-through;border:1px dashed #8884}.pager{display:block;width:100%;padding:8px;background:var(--soft);color:var(--blue)}.split.starting{background:#419d89}.split.streaming{background:#8465bb}.split.starting .play:disabled,.split.streaming .play:disabled{opacity:1}.muted{font-size:12px;opacity:.75}.note{font-size:12px;margin:8px 0;overflow-wrap:anywhere}.note:empty{display:none}.link{color:var(--blue);padding:0}.row{display:flex;gap:10px;align-items:center}.row input{min-width:0;flex:1}.primary{background:var(--blue);color:white;padding:9px 16px}.secondary{background:var(--soft);padding:9px 14px}input[type=text],input[type=number]{border:1px solid #8883;background:var(--soft);color:var(--text);border-radius:4px;padding:9px;width:100%}h2{font-size:20px;margin:0;font-weight:600}h3{font-size:14px;margin:12px 0}p{margin:8px 0}
+    :host{--bg:rgb(var(--color-foreground,250,250,250));--text:rgb(var(--color-text,92,114,138));--blue:rgb(var(--color-blue,61,180,242));--soft:rgb(var(--color-background,237,241,245));font-family:inherit;font-size:14px;line-height:1.5;color:var(--text);text-align:left;scrollbar-color:var(--text) var(--bg)}
+    *{box-sizing:border-box;scrollbar-width:thin}::-webkit-scrollbar{width:9px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#7b8ba055;border-radius:9px}button,input{font:inherit}button{cursor:pointer;border:0;color:inherit;background:transparent;border-radius:4px}button:disabled{cursor:default;opacity:.45}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}button:hover:not(:disabled){filter:brightness(1.08)}
+    .split{display:flex;width:100%;height:35px;border-radius:3px;overflow:hidden;background:var(--blue);color:white}.split button{color:white}.play{flex:1}.arrow{width:34px;border-radius:0;background:rgba(255,255,255,.14)}.chevron{font-family:element-icons;font-size:14px;font-style:normal}.chevron.fallback{display:inline-block;font-size:0;width:7px;height:7px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:translateY(-2px) rotate(45deg)}.wrap{position:relative}.menu{animation:menu-in .16s ease-out;transform-origin:top left;position:absolute;top:43px;left:0;width:270px;background:var(--bg);padding:14px;z-index:200;box-shadow:0 6px 24px #0003;border-radius:6px}.menu[hidden]{display:none}label{display:flex;align-items:center;gap:10px}input[type=checkbox]{accent-color:var(--blue);width:16px;height:16px}.episodes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:220px;overflow:auto;margin:12px 0}.episode{background:var(--soft);padding:7px}.episode.current{background:var(--blue);color:white}.episode.seen{background:rgba(75,180,140,.18);color:#59b99a;box-shadow:inset 0 0 0 1px #59b99a40}.episode:disabled{cursor:not-allowed;background:transparent;color:var(--text);opacity:.35;text-decoration:line-through;border:1px dashed #8884}.pager{display:block;width:100%;padding:8px;background:var(--soft);color:var(--blue)}.split.starting{background:#419d89}.split.streaming{background:#8465bb}.split.starting .play:disabled,.split.streaming .play:disabled{opacity:1}.muted{font-size:12px;opacity:.75}.note{font-size:12px;margin:8px 0;overflow-wrap:anywhere}.note:empty{display:none}.link{color:var(--blue);padding:0}.row{display:flex;gap:10px;align-items:center}.row input{min-width:0;flex:1}.primary{background:var(--blue);color:white;padding:9px 16px}.secondary{background:var(--soft);padding:9px 14px}input[type=text],input[type=number]{border:1px solid #8883;background:var(--soft);color:var(--text);border-radius:4px;padding:9px;width:100%}h2{font-size:20px;margin:0;font-weight:600}h3{font-size:14px;margin:12px 0}p{margin:8px 0}
     .arrow[hidden]{display:none}.notice{padding:12px;border-radius:7px;background:rgba(61,180,242,.12);border-left:3px solid var(--blue);margin:0 0 12px;overflow-wrap:anywhere}.notice strong{display:block;font-size:14px}.notice span{display:block;font-size:12px;margin-top:3px}.notice[data-tone=playing]{background:rgba(132,101,187,.16);border-color:#9875d2}.notice[data-tone=error]{background:rgba(228,105,121,.14);border-color:#e46979}.notice[data-tone=closed]{background:rgba(75,180,140,.14);border-color:#59b99a}.panel .error,.panel .sync{padding:11px 12px;border-radius:6px;border-left:3px solid currentColor;background:rgba(228,105,121,.12);font-size:12px}.panel .sync{color:var(--blue);background:rgba(61,180,242,.12)}.panel .sync[data-tone=success]{color:#59b99a;background:rgba(75,180,140,.14)}.panel .sync[data-tone=retry]{color:#c5994e;background:rgba(197,153,78,.12)}.panel .sync:empty{display:none}.stats span{padding:7px 8px;background:var(--soft);border-radius:5px}.panel .row{flex-wrap:wrap}
     @keyframes menu-in{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.menu{animation:none}}
     dialog{pointer-events:auto;border:0;border-radius:8px;background:var(--bg);color:var(--text);width:min(820px,calc(100vw - 32px));max-height:85vh;padding:26px;box-shadow:0 15px 80px #0006;font:inherit}dialog::backdrop{background:#07101bbb;backdrop-filter:blur(3px)}.heading{display:flex;justify-content:space-between;gap:16px;margin-bottom:14px}.close{font-size:22px;line-height:1;padding:4px 8px}.results{max-height:50vh;overflow:auto;margin-top:16px}.release{display:block;text-align:left;width:100%;padding:14px 10px;border-top:1px solid #8882;border-radius:0}.release:hover{background:var(--soft)}.release-name{display:block;overflow-wrap:anywhere;font-weight:600}.release-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;margin-top:5px;opacity:.8}.badge{color:var(--blue)}.error{color:#e46979;overflow-wrap:anywhere}.error:empty{display:none}
-    .panel{pointer-events:auto;position:fixed;right:max(18px,calc((100vw - 1320px)/2));top:var(--aniqw-top,75px);width:min(410px,calc(100vw - 36px));z-index:990;background:var(--bg);border-radius:10px;box-shadow:0 8px 32px #0004;border:1px solid #8882;border-top:3px solid var(--blue)}.panel[hidden]{display:none}summary{display:flex;align-items:center;gap:8px;padding:12px;cursor:pointer;font-weight:600;overflow-wrap:anywhere;list-style:none}summary::-webkit-details-marker{display:none}.panel-title{flex:1;min-width:0;font-size:13px}.move{cursor:grab;touch-action:none;padding:5px;opacity:.6;font-size:19px}.move:active{cursor:grabbing}.dismiss{font-size:20px;padding:2px 6px;opacity:.7}.restore{pointer-events:auto;position:fixed;right:18px;bottom:18px;background:var(--bg);color:var(--blue);border:1px solid #8883;box-shadow:0 4px 18px #0003;padding:10px 16px}.restore[hidden]{display:none}.body{max-height:calc(100vh - 160px);overflow:auto}.body{padding:0 16px 16px}.filename{font-size:12px;opacity:.7;overflow-wrap:anywhere;max-height:55px;overflow:auto}progress{width:100%;height:6px;accent-color:var(--blue);margin:12px 0}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin:8px 0 14px}.sync{font-size:12px;overflow-wrap:anywhere}.panel .row{justify-content:space-between}
+    .panel{pointer-events:auto;position:fixed;right:max(18px,calc((100vw - 1320px)/2));top:var(--aniqw-top,75px);width:min(410px,calc(100vw - 36px));z-index:990;background:var(--bg);border-radius:10px;box-shadow:0 8px 32px #0004;border:1px solid #8882;border-top:3px solid var(--blue)}.panel[hidden]{display:none}summary{display:flex;align-items:center;gap:8px;padding:12px;cursor:pointer;font-weight:600;overflow-wrap:anywhere;list-style:none}summary::-webkit-details-marker{display:none}.panel-title{flex:1;min-width:0;font-size:13px}.move{cursor:grab;touch-action:none;padding:5px;opacity:.6;font-size:19px}.move:active{cursor:grabbing}.dismiss{font-size:20px;padding:2px 6px;opacity:.7}.restore{pointer-events:auto;position:fixed;right:18px;bottom:18px;background:var(--bg);color:var(--blue);border:1px solid #8883;box-shadow:0 4px 18px #0003;padding:10px 16px}.restore[hidden]{display:none}.body{max-height:calc(100vh - 160px);overflow:auto}.body{padding:0 16px 16px}.filename{padding:8px;background:var(--soft);border-radius:5px;font-size:12px;opacity:.85;overflow-wrap:anywhere;max-height:55px;overflow:auto}progress{width:100%;height:6px;accent-color:var(--blue);margin:12px 0}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin:8px 0 14px}.sync{font-size:12px;overflow-wrap:anywhere}.panel .row{justify-content:space-between}
   `;
   const el = (tag, attrs = {}, text) => {
     const e = document.createElement(tag);
@@ -32,7 +32,7 @@
   overlay.append(restore);
   function setDismissed(value) { dismissed = value; panel.hidden = value; restore.hidden = !value; }
   dismiss.onclick = e => { e.preventDefault(); e.stopPropagation(); setDismissed(true); restore.focus(); };
-  restore.onclick = () => { clearTimeout(closeTimer); setDismissed(false); summary.focus(); };
+  restore.onclick = () => { cancelCountdown(); setDismissed(false); summary.focus(); };
   function positionPanel() {
     if (!panelPosition) return;
     const width = Math.min(410, innerWidth - 36);
@@ -50,7 +50,10 @@
   panel.addEventListener('toggle', positionPanel);
   const body = el('div', { class: 'body' });
   const phaseBox = el('div', { class: 'notice', role: 'status', 'aria-live': 'polite' });
-  const phaseTitle = el('strong'), phaseDetail = el('span'); phaseBox.append(phaseTitle, phaseDetail);
+  const phaseTitle = el('strong'); phaseBox.append(phaseTitle);
+  const countdown = el('p', {class:'muted'});
+  function cancelCountdown(){clearInterval(closeTimer);countdown.textContent='';}
+  function startCountdown(){cancelCountdown();let seconds=7; countdown.textContent=`Minimizing in ${seconds}s`; closeTimer=setInterval(()=>{seconds--;countdown.textContent=`Minimizing in ${seconds}s`;if(seconds<=0){cancelCountdown();setDismissed(true);}},1000);}
   const filename = el('div', { class: 'filename' });
   const bar = el('progress', { max: '100', value: '0', 'aria-label': 'Torrent download progress' });
   const stats = el('div', { class: 'stats' });
@@ -64,13 +67,13 @@
   } }, 'Stop');
   const replay = el('button', { class: 'primary', hidden: '', onclick: async () => {
     if (!activeRequest || launchMediaId !== null) return;
-    launchMediaId = activeRequest.mediaId; replay.disabled = true; clearTimeout(closeTimer); updatePlayButton();
+    launchMediaId = activeRequest.mediaId; replay.disabled = true; cancelCountdown(); updatePlayButton();
     try { setDismissed(false); await send('play', activeRequest); } catch(e) { warning.textContent = e.message; }
     finally { launchMediaId = null; replay.disabled = false; updatePlayButton(); }
   } }, 'Replay');
   const choose = el('button', { class: 'link', onclick: () => activeRequest && chooser(activeRequest) }, 'Choose another torrent');
   const controls = el('div', { class: 'row' }); controls.append(choose, replay, stop);
-  body.append(phaseBox, filename, bar, stats, warning, sync, controls); panel.append(summary, body); overlay.append(panel);
+  body.append(phaseBox, bar, filename, stats, warning, sync, countdown, controls); panel.append(summary, body); overlay.append(panel);
 
   function connect() {
     port = chrome.runtime.connect({ name: 'ani-qw' });
@@ -83,7 +86,7 @@
       if (message.event === 'state') renderState(message.data);
       if (message.event === 'connection') { if (control) control.querySelector('.note').textContent = message.data.error; }
       if (message.event === 'sync') { sync.dataset.tone = 'retry'; sync.textContent = message.data.error; panel.open = true; if (!dismissed) panel.hidden = false; }
-      if (message.event === 'synced') { sync.dataset.tone = 'success'; panel.open = true; sync.textContent = `Episode ${message.data.episode} marked watched on AniList.`; if (message.data.mediaId === mediaId) loadMedia(); }
+      if (message.event === 'synced') { sync.dataset.tone = 'success'; panel.open = true; sync.textContent = message.data.rewatch ? 'Marked Rewatching on AniList.' : `Episode ${message.data.episode} marked watched on AniList.`; if (message.data.mediaId === mediaId) loadMedia(); }
       if (message.event === 'failure') {
         if (message.data.sessionId !== status.sessionId) return;
         warning.textContent = message.data.message; panel.open = true;
@@ -112,8 +115,9 @@
     const starting = launchMediaId === mediaId || (active && ['searching','metadata','verifying'].includes(status.phase));
     const streaming = active && ['buffering','playing','paused'].includes(status.phase);
     split.classList.toggle('starting', starting); split.classList.toggle('streaming', streaming);
-    button.textContent = starting ? 'Starting…' : streaming ? 'Streaming' : active && status.phase === 'stopping' ? 'Stopping…' : model.next ? `Play Episode ${model.next}` : 'Not yet aired';
-    button.disabled = starting || active || !model.next;
+    button.textContent = starting ? 'Starting…' : streaming ? 'Streaming' : active && status.phase === 'stopping' ? 'Stopping…' : model.next ? (model.media.mediaListEntry?.status === 'COMPLETED' ? 'Rewatch' : `Play Episode ${model.next}`) : 'Not yet aired';
+    button.disabled = starting || (active && !streaming) || !model.next;
+    button.title = streaming ? 'Show or hide playback details' : '';
     const arrow = control.querySelector('.arrow');
     arrow.hidden = arrow.disabled = starting || active;
     if (arrow.disabled) { control.querySelector('.menu').hidden = true; arrow.setAttribute('aria-expanded', 'false'); }
@@ -128,17 +132,13 @@
     panel.hidden = dismissed;
     panelTitle.textContent = `${s.media?.title || 'Ani-QW'}${s.episode ? ` · Episode ${s.episode}` : ''}`;
     const phases = {
-      searching: ['Finding your episode', 'Searching for a matching release.'],
-      metadata: ['Gathering torrent metadata', 'Connecting to peers to read the available files.'],
-      verifying: ['Checking cached video', 'Verifying downloaded pieces before playback.'],
-      buffering: ['Buffering video', 'mpv is open. Waiting for enough video data.'],
-      playing: ['Streaming in mpv', 'Your episode is playing.'],
-      paused: ['Playback paused', 'Resume from your mpv window.'],
-      stopping: ['Stopping playback', 'Closing mpv and releasing the torrent.'],
-      idle: s.endReason === 'closed' ? ['mpv was closed', 'Replay this episode, or choose another one.'] : s.endReason === 'error' ? ['Playback failed', 'Check the message below, then try again.'] : ['Playback stopped', 'Replay whenever you are ready.']
+      searching: 'Finding your episode', metadata: 'Gathering torrent metadata',
+      verifying: 'Checking cached video', buffering: 'Buffering video',
+      playing: 'Streaming in mpv', paused: 'Playback paused', stopping: 'Stopping playback',
+      idle: s.endReason === 'closed' ? 'mpv was closed' : s.endReason === 'error' ? 'Playback failed' : 'Playback stopped'
     };
-    const [title, detail] = phases[s.phase] || ['Preparing playback', 'Getting your episode ready.'];
-    phaseTitle.textContent = title; phaseDetail.textContent = detail;
+    const title = phases[s.phase] || 'Preparing playback';
+    phaseTitle.textContent = title;
     phaseBox.dataset.tone = ['playing','paused'].includes(s.phase) ? 'playing' : s.phase === 'idle' ? (s.endReason === 'error' ? 'error' : 'closed') : 'starting';
     if (previous.phase !== s.phase) panel.open = true;
     filename.textContent = s.filename || 'Finding your episode…'; bar.value = s.percent || 0;
@@ -151,10 +151,10 @@
     warning.textContent = s.warning || '';
     stop.disabled = s.phase === 'idle' || s.phase === 'stopping'; stop.textContent = s.phase === 'stopping' ? 'Stopping…' : 'Stop';
     stop.hidden = s.phase === 'idle'; replay.hidden = s.phase !== 'idle' || !s.media?.id;
-    if (s.media?.id) activeRequest = { mediaId: s.media.id, episode: s.episode };
-    if (s.phase !== 'idle') clearTimeout(closeTimer);
+    if (s.media?.id) activeRequest = { mediaId: s.media.id, episode: s.episode, rewatch:!!s.rewatch };
+    if (s.phase !== 'idle') cancelCountdown();
     else if (previous.phase !== 'idle' && !s.warning) {
-      clearTimeout(closeTimer); closeTimer = setTimeout(() => setDismissed(true), 7000);
+      startCountdown();
     }
   }
   function showError(e) {
@@ -184,7 +184,7 @@
       const fresh = await send('media', { mediaId: requestedMedia, fresh: true });
       if (requestedMedia !== mediaId) return;
       model = fresh;
-      const request = { mediaId: requestedMedia, episode: episode ?? fresh.next };
+      const request = { mediaId: requestedMedia, episode: episode ?? fresh.next, rewatch: episode === undefined && fresh.media.mediaListEntry?.status === 'COMPLETED' };
       if (!request.episode) return;
       activeRequest = request;
       if (fresh.autoSelect) { setDismissed(false); panel.open = true; warning.textContent = ''; await send('play', request); }
@@ -194,7 +194,7 @@
   function renderControl() {
     const wrap = el('div', { class: 'wrap' });
     const split = el('div', { class: 'split' });
-    const play = el('button', { class: 'play' }, model.next ? `Play Episode ${model.next}` : 'Not yet aired'); play.disabled = !model.next; play.onclick = () => begin();
+    const play = el('button', { class: 'play' }, model.next ? (model.media.mediaListEntry?.status === 'COMPLETED' ? 'Rewatch' : `Play Episode ${model.next}`) : 'Not yet aired'); play.disabled = !model.next; play.onclick = () => {if(status.media?.id === mediaId && ['buffering','playing','paused'].includes(status.phase)){cancelCountdown();setDismissed(!panel.hidden);if(!panel.hidden)panel.open=true;}else begin();};
     const arrow = el('button', { class: 'arrow', 'aria-label': 'Playback options', 'aria-expanded': 'false' }); arrow.append(el('span', { class: [...document.fonts].some(f => f.family.replaceAll('"', '') === 'element-icons') ? 'chevron' : 'chevron fallback', 'aria-hidden': 'true' }, '\ue603'));
     const menu = el('div', { class: 'menu', hidden: '' });
     arrow.onclick = () => { menu.hidden = !menu.hidden; arrow.setAttribute('aria-expanded', String(!menu.hidden)); };
@@ -213,6 +213,7 @@
       for (let ep = first; ep <= Math.min(total, first + 19); ep++) {
         const unavailable = model.available !== null && ep > model.available;
         const b = el('button', { class: `episode${ep === model.next ? ' current' : ''}${ep <= watched ? ' seen' : ''}`, 'aria-label': `Play episode ${ep}${unavailable ? ' (unavailable)' : ep <= watched ? ' (watched)' : ''}` }, String(ep));
+        b.title = unavailable ? 'Unreleased' : ep <= watched ? 'Completed' : ep === model.next ? 'Last unwatched' : 'Unwatched';
         b.disabled = unavailable;
         b.onclick = () => { menu.hidden = true; begin(ep); }; list.append(b);
       }

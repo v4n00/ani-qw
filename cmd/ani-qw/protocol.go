@@ -18,17 +18,21 @@ type Media struct {
 	Episodes int      `json:"episodes"`
 }
 type Request struct {
-	Version      int      `json:"v"`
-	ID           string   `json:"id"`
-	Command      string   `json:"command"`
-	SessionID    string   `json:"sessionId,omitempty"`
-	Media        Media    `json:"media"`
-	Episode      int      `json:"episode"`
-	UserID       int      `json:"userId"`
-	Query        string   `json:"query"`
-	Torrent      *Release `json:"torrent,omitempty"`
-	FileIndex    *int     `json:"fileIndex,omitempty"`
-	CompletionID string   `json:"completionId,omitempty"`
+	WatchedPercent *int     `json:"watchedPercent,omitempty"`
+	Rewatch        bool     `json:"rewatch,omitempty"`
+	RepeatBase     int      `json:"repeatBase,omitempty"`
+	CacheGiB       *int     `json:"cacheGiB,omitempty"`
+	Version        int      `json:"v"`
+	ID             string   `json:"id"`
+	Command        string   `json:"command"`
+	SessionID      string   `json:"sessionId,omitempty"`
+	Media          Media    `json:"media"`
+	Episode        int      `json:"episode"`
+	UserID         int      `json:"userId"`
+	Query          string   `json:"query"`
+	Torrent        *Release `json:"torrent,omitempty"`
+	FileIndex      *int     `json:"fileIndex,omitempty"`
+	CompletionID   string   `json:"completionId,omitempty"`
 }
 type Message struct {
 	Version int    `json:"v"`

@@ -10,7 +10,8 @@ trap 'rm -rf -- "$stage"' EXIT
 mkdir -p "$stage/bin" dist
 go build -tags nosqlite -trimpath -o "$stage/bin/ani-qw" ./cmd/ani-qw
 python3 scripts/collect_notices.py
-cp -R extension "$stage/"
+cp -R extension docs "$stage/"
+cp icon.png "$stage/"
 cp install.sh LICENSE THIRD_PARTY.md README.md "$stage/"
 cp bin/THIRD_PARTY_LICENSES.txt "$stage/"
 tar -czf "dist/ani-qw-linux-$arch.tar.gz" -C "$stage" .

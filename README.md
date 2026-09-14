@@ -1,11 +1,14 @@
 <p align="center"><img src="icon.png" width="64" alt="Ani-QW icon"></p>
-<h1 align="center">Ani-QW</h1>
+<h1 align="center">Ani-QW · AniList Quick Watch</h1>
 <p align="center"><strong>Your anime list. One Play button. mpv.</strong></p>
 <p align="center"><a href="https://github.com/v4n00/ani-qw/releases">Downloads</a> · <a href="#install">Install</a> · <a href="docs/protocol.md">Protocol</a></p>
 
 Watch from AniList in mpv on Linux. A Chromium extension adds a Play button underneath an anime's Watching / Add to List controls. A small Go process finds a Nyaa torrent and streams the selected video to mpv.
 
 No desktop window, web dashboard, login-time service, or separate torrent client is required. The helper runs only when needed. Playback continues if you close the browser.
+
+> [!NOTE]
+> This project is 100% coded by AI.
 
 ## Made for your watchlist
 
@@ -14,7 +17,7 @@ No desktop window, web dashboard, login-time service, or separate torrent client
 - **Keep track.** A movable playback panel with clear states, transfer statistics, Stop and Replay.
 - **Sync progress.** Watched episodes are queued reliably, even when the browser closes.
 
-<p align="center"><img src="docs/images/playback.png" width="440" alt="Ani-QW playback panel showing its separate streaming status card and torrent statistics"></p>
+<p align="center"><img src="docs/images/playback.jpg" width="520" alt="Ani-QW playback panel showing its separate streaming status card and torrent statistics"></p>
 <p align="center"><em>Actual extension UI with synthetic demonstration data.</em></p>
 
 ## Install
@@ -40,11 +43,13 @@ The Bash installer downloads the matching Linux x86_64 or ARM64 release, checks 
 3. Open Ani-QW's extension options, select **Get AniList token**, then paste the token and connect.
 4. Open an anime on AniList and press **Play Episode N**.
 
-The directory must stay in place. Updates keep the same extension ID and connection. Google Chrome and Brave Origin are optional native-host targets:
+The directory must stay in place. Updates keep the same extension ID and connection. Other native-host targets include Chrome stable/beta/dev, Brave stable/Origin, and Vivaldi stable/snapshot:
 
 ```sh
 bash install.sh --browser google-chrome
-bash install.sh --browser brave-origin
+bash install.sh --browser brave
+bash install.sh --browser vivaldi
+bash install.sh --browser google-chrome-beta
 ```
 
 Chromium still requires the manual **Load unpacked** step. [Linux supports self-hosted CRX extensions](https://developer.chrome.com/docs/extensions/how-to/distribute/host-on-linux), but this release uses unpacked distribution to retain its stable ID without an available CRX signing key. No browser security settings or enterprise policies are changed.
@@ -74,11 +79,12 @@ Authorize the same account that is logged into the AniList website. The access t
 - The arrow opens an episode picker and the persistent **Automatically select torrent** toggle. Known unaired episodes are disabled. When availability is unknown, enter an episode number explicitly.
 - Automatic selection prefers seeded, English-translated 1080p releases with a credible title, season, and episode match. If no reliable match exists, the manual chooser opens.
 - The manual chooser searches Nyaa and shows resolution, size, seeds, and leechers. Choose a torrent, then its video file. A likely episode is highlighted; unusual filenames or absolute numbering may need your judgment.
-- A collapsible panel beneath the navigation shows downloading, buffering, playback, and peer statistics. **Choose another torrent** replaces the current selection; **Stop** ends playback.
-- Passing 80% of a known video duration marks the episode watched, including seeking beyond that point. Rewatching never reduces AniList progress. Completion records survive browser closure and are acknowledged only after a successful AniList update.
-- v1 starts each episode at the beginning and does not autoplay the next episode.
+- A movable, collapsible playback panel shows downloading, buffering, playback, and peer statistics. **Choose another torrent** replaces the current selection; **Stop** ends playback. Clicking **Streaming** toggles the panel; normal closure shows a countdown before minimizing.
+- Reaching your configured watched percentage (80% by default) of a known video duration marks the episode watched, including seeking beyond that point. One-off episode replays never reduce AniList progress. Completion records survive browser closure and are acknowledged only after a successful AniList update.
+- Unfinished episodes resume from their saved position, scoped to your account and episode. Positions are saved every five seconds and on normal exit; watched episodes clear their resume point. There is no next-episode autoplay.
+- **Rewatch** starts a new viewing pass for a completed show. AniList changes to Rewatching only after the watched threshold is reached. Choosing an older episode manually is a one-off replay and never lowers existing progress.
 
-The helper retains up to **20 GiB of allocated torrent data**, evicting the least-recently-used inactive torrents. An active session may exceed the limit temporarily. Sharing and downloading stop when mpv exits. Cached pieces are verified before reuse; sparse file length is not treated as proof of downloaded data.
+The helper retains up to **20 GiB of allocated torrent data by default**, configurable from 1–1024 GiB in extension settings, evicting the least-recently-used inactive torrents. An active session may exceed the limit temporarily. Sharing and downloading stop when mpv exits. Cached pieces are verified before reuse; sparse file length is not treated as proof of downloaded data.
 
 ## Diagnostics and updates
 

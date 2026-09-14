@@ -43,3 +43,21 @@ func TestInstallUninstallIsolated(t *testing.T) {
 		t.Fatal("binary not removed after last registration")
 	}
 }
+
+func TestAdditionalBrowserRegistrations(t *testing.T) {
+	for name, profile := range map[string]string{"brave": "BraveSoftware/Brave-Browser", "vivaldi": "vivaldi", "vivaldi-snapshot": "vivaldi-snapshot", "google-chrome-beta": "google-chrome-beta", "google-chrome-unstable": "google-chrome-unstable"} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			config := filepath.Join(root, "config")
+			if err := installationAt("install", []string{name}, root, config); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(config, profile, "NativeMessagingHosts", hostName+".json")); err != nil {
+				t.Fatal(err)
+			}
+			if err := installationAt("uninstall", []string{name}, root, config); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

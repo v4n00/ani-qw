@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -216,7 +217,13 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 	ipc := filepath.Join(w.p.Runtime, "mpv-"+sid[:8]+".sock")
 	defer os.Remove(ipc)
 	streamURL := "http://" + l.Addr().String() + "/" + token + "/video"
-	cmd := exec.CommandContext(ctx, "mpv", "--input-ipc-server="+ipc, "--force-window=yes", "--idle=no", "--keep-open=no", "--title="+r.Media.Title+fmt.Sprintf(" · Episode %d", r.Episode), "--", streamURL)
+	prefs, err := readSettings(w.p.State)
+	if err != nil {
+		return err
+	}
+	start := readResume(w.p.State, r)
+	title := r.Media.Title + fmt.Sprintf(" · Episode %d", r.Episode)
+	cmd := exec.CommandContext(ctx, "mpv", "--force-media-title="+title, fmt.Sprintf("--start=%.3f", start), "--input-ipc-server="+ipc, "--force-window=yes", "--idle=no", "--keep-open=no", "--title="+r.Media.Title+fmt.Sprintf(" · Episode %d", r.Episode), "--", streamURL)
 	cmd.Stderr = os.Stderr
 	if err = cmd.Start(); err != nil {
 		return fmt.Errorf("could not launch mpv: %w", err)
@@ -248,12 +255,19 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 	go observeMPV(conn, updates)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	var pos, duration float64
+	pos := start
+	var duration float64
 	paused, buffering := false, true
 	completed := false
+	defer func() {
+		if err := saveResume(w.p.State, r, pos, completed); err != nil {
+			log.Print("save resume: ", err)
+		}
+	}()
 	var disconnectedAt time.Time
 	var prevDown, prevUp, lastBytes int64
 	lastProgress := time.Now()
+	lastResumeSave := time.Now()
 	for {
 		select {
 		case err := <-done:
@@ -281,16 +295,25 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 			case "paused-for-cache":
 				buffering = u.Bool
 			}
-			if !completed && duration > 0 && pos/duration > 0.8 && r.UserID > 0 {
-				cc := Completion{randomID(), r.UserID, r.Media.ID, r.Episode, sid}
+			if !completed && duration > 0 && pos/duration >= float64(prefs.WatchedPercent)/100 && r.UserID > 0 {
+				cc := Completion{ID: randomID(), UserID: r.UserID, MediaID: r.Media.ID, Episode: r.Episode, SessionID: sid, Rewatch: r.Rewatch, RepeatBase: r.RepeatBase}
 				if err := w.complete(cc); err != nil {
 					w.update(sid, func(s *State) { s.Warning = "Could not save watch progress: " + err.Error() })
 				} else {
 					completed = true
+					if err := saveResume(w.p.State, r, pos, true); err != nil {
+						log.Print("clear resume: ", err)
+					}
 					w.broadcast("completion", cc)
 				}
 			}
 		case <-ticker.C:
+			if time.Since(lastResumeSave) >= 5*time.Second {
+				lastResumeSave = time.Now()
+				if err := saveResume(w.p.State, r, pos, completed); err != nil {
+					log.Print("save resume: ", err)
+				}
+			}
 			stats := t.Stats()
 			down, up := stats.BytesReadData.Int64(), stats.BytesWrittenData.Int64()
 			n := f.BytesCompleted()

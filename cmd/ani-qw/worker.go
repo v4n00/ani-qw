@@ -15,13 +15,16 @@ import (
 )
 
 type Completion struct {
-	ID        string `json:"id"`
-	UserID    int    `json:"userId"`
-	MediaID   int    `json:"mediaId"`
-	Episode   int    `json:"episode"`
-	SessionID string `json:"sessionId"`
+	Rewatch    bool   `json:"rewatch,omitempty"`
+	RepeatBase int    `json:"repeatBase,omitempty"`
+	ID         string `json:"id"`
+	UserID     int    `json:"userId"`
+	MediaID    int    `json:"mediaId"`
+	Episode    int    `json:"episode"`
+	SessionID  string `json:"sessionId"`
 }
 type State struct {
+	Rewatch       bool    `json:"rewatch,omitempty"`
 	UserID        int     `json:"userId"`
 	Hash          string  `json:"hash,omitempty"`
 	FileIndex     int     `json:"fileIndex"`
@@ -168,6 +171,9 @@ func (w *worker) serve(p *peer) {
 		w.lastUse = time.Now()
 		w.mu.Unlock()
 		switch r.Command {
+		case "settings":
+			s, err := w.settings(r.CacheGiB, r.WatchedPercent)
+			w.reply(p, r, s, err)
 		case "state":
 			w.mu.Lock()
 			s := w.state
@@ -278,7 +284,7 @@ func (w *worker) start(p *peer, r Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sid := randomID()
 	w.cancel = cancel
-	w.state = State{SessionID: sid, Media: r.Media, Episode: r.Episode, UserID: r.UserID, FileIndex: -1, Phase: "searching"}
+	w.state = State{Rewatch: r.Rewatch, SessionID: sid, Media: r.Media, Episode: r.Episode, UserID: r.UserID, FileIndex: -1, Phase: "searching"}
 	if r.Torrent != nil {
 		w.state.Hash = r.Torrent.Hash
 	}
@@ -330,7 +336,12 @@ func (w *worker) start(p *peer, r Request) {
 		if current {
 			w.broadcast("state", s)
 		}
-		if err := evictCache(w.p.Cache, cacheLimit); err != nil {
+		settings, settingsErr := readSettings(w.p.State)
+		if settingsErr != nil {
+			log.Print(settingsErr)
+			settings.CacheGiB = 20
+		}
+		if err := evictCache(w.p.Cache, int64(settings.CacheGiB)<<30); err != nil {
 			log.Print(err)
 		}
 	}()

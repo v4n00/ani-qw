@@ -7,7 +7,7 @@ test('background account checks, retry, completion replay, and expired authoriza
   const completions = [];
   const acknowledgements = [];
   const mutations = [];
-  let progress = 2;
+  let progress = 2; let entryStatus = 'CURRENT';
   let failMutation = false;
   let expired = false;
   let limited = false;
@@ -44,12 +44,12 @@ test('background account checks, retry, completion replay, and expired authoriza
     if (limited) return { status: 429, headers: { get: () => '60' } };
     if (query.includes('SaveMediaListEntry')) {
       if (failMutation) throw new Error('Offline');
-      mutations.push(variables); progress = variables.progress;
+      mutations.push(variables); progress = query.includes('status:REPEATING') ? 0 : variables.progress; entryStatus = query.includes('status:REPEATING') ? 'REPEATING' : variables.status;
       return { ok: true, status: 200, json: async () => ({ data: { SaveMediaListEntry: { progress } } }) };
     }
     if (query.includes('Viewer')) { viewerReads++; return { ok: true, status: 200, json: async () => ({ data: { Viewer: { id: 7, name: 'fixture' } } }) }; }
     assert.ok(!query.includes('airingSchedule('), 'schedule must use Page.airingSchedules');
-    return { ok: true, status: 200, json: async () => ({ data: { Media: { id: variables.id, title: { romaji: 'Example' }, synonyms: [], format: 'TV', status: 'RELEASING', episodes: 12, nextAiringEpisode: { episode: 9 }, mediaListEntry: { progress } }, Page: { airingSchedules: [] } } }) };
+    return { ok: true, status: 200, json: async () => ({ data: { Media: { id: variables.id, title: { romaji: 'Example' }, synonyms: [], format: 'TV', status: 'RELEASING', episodes: 12, nextAiringEpisode: { episode: 9 }, mediaListEntry: { progress, status: entryStatus } }, Page: { airingSchedules: [] } } }) };
   };
   await import('../extension/background.js');
   const inbox = [];
@@ -88,6 +88,20 @@ test('background account checks, retry, completion replay, and expired authoriza
   const other = { ...completion, id: 'other-account', userId: 9 }; completions.push(other); nativeMessage({ v: 1, event: 'completion', data: other });
   await new Promise(r => setTimeout(r, 30));
   assert.equal(acknowledgements.length, 2, 'other-account event must remain queued');
+  progress = 12; entryStatus = 'COMPLETED';
+  await call('media', {mediaId:1,fresh:true});
+  const count = mutations.length;
+  const rewatches = await Promise.all([call('play',{mediaId:1,episode:1,rewatch:true}),call('play',{mediaId:1,episode:1,rewatch:true})]);
+  assert.ok(rewatches.every(r=>!r.error));
+  assert.equal(mutations.length,count,'rewatch click must not mutate AniList');
+  assert.equal(entryStatus,'COMPLETED'); assert.equal(progress,12);
+  const rewatchDone={...completion,id:'rewatch-done',sessionId:'rewatch-session',episode:1,rewatch:true,repeatBase:0};
+  nativeMessage({v:1,event:'completion',data:rewatchDone});
+  await until(()=>mutations.length===count+1);
+  assert.equal(entryStatus,'REPEATING');assert.equal(progress,1);
+  nativeMessage({v:1,event:'completion',data:rewatchDone});
+  await new Promise(r=>setTimeout(r,20));
+  assert.equal(mutations.length,count+1,'replayed rewatch event is idempotent');
   expired = true;
   assert.match((await call('media', { mediaId: 1, fresh: true })).error, /expired/);
   expired = false; limited = true;

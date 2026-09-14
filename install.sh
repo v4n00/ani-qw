@@ -10,11 +10,11 @@ while (($#)); do
     --browser) browser=${2:?Missing browser}; shift 2 ;;
     --from) source_dir=${2:?Missing extracted release directory}; shift 2 ;;
     --uninstall) uninstall=true; shift ;;
-    --help|-h) printf 'Usage: bash install.sh [--browser chromium|google-chrome|brave-origin] [--from DIRECTORY] [--uninstall]\n'; exit 0 ;;
+    --help|-h) printf 'Usage: bash install.sh [--browser chromium|google-chrome|google-chrome-beta|google-chrome-unstable|brave|brave-origin|vivaldi|vivaldi-snapshot] [--from DIRECTORY] [--uninstall]\n'; exit 0 ;;
     *) printf 'Unknown option: %s\n' "$1" >&2; exit 1 ;;
   esac
 done
-case "$browser" in chromium|google-chrome|brave-origin) ;; *) echo 'Unsupported browser.' >&2; exit 1 ;; esac
+case "$browser" in chromium|google-chrome|google-chrome-beta|google-chrome-unstable|brave|brave-origin|vivaldi|vivaldi-snapshot) ;; *) echo 'Unsupported browser.' >&2; exit 1 ;; esac
 [[ $(uname -s) == Linux ]] || { echo 'Ani-QW requires Linux.' >&2; exit 1; }
 [[ $EUID != 0 ]] || { echo 'Run this as your own user, without sudo.' >&2; exit 1; }
 binary="$HOME/.local/bin/ani-qw"

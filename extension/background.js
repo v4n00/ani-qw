@@ -16,7 +16,7 @@ const readInFlight = new Map();
 const ready = chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
 const mediaFields = `id title { romaji english native } synonyms format status episodes
   nextAiringEpisode { episode airingAt }
-  mediaListEntry { id progress status }`;
+  mediaListEntry { id progress status repeat }`;
 
 async function api(query, variables = {}, candidateToken, fresh = false) {
   const cacheable = !candidateToken && !query.trimStart().startsWith('mutation');
@@ -123,8 +123,8 @@ function queueSync() {
       const media = await getMedia(c.mediaId, true);
       if (!media) throw new Error('Anime no longer exists on AniList.');
       if (generation !== authGeneration || !(await accountMatches(viewer))) throw new Error('Account changed. Watch progress is saved for later synchronization.');
-      const update = progressUpdate(media, c.episode);
-      if (update) await api('mutation($mediaId:Int!,$progress:Int!,$status:MediaListStatus){SaveMediaListEntry(mediaId:$mediaId,progress:$progress,status:$status){id progress}}', update);
+      const update = progressUpdate(media, c.episode, c);
+      if (update) await api('mutation($mediaId:Int!,$progress:Int!,$status:MediaListStatus,$repeat:Int){SaveMediaListEntry(mediaId:$mediaId,progress:$progress,status:$status,repeat:$repeat){id progress}}', update);
       await rpc('ack', { completionId: c.id, userId: viewer.id });
       pending.delete(c.id); broadcast('synced', { mediaId: c.mediaId, episode: c.episode });
     }
@@ -158,7 +158,7 @@ async function handle(message, port) {
       const episode = message.episode ?? nextEpisode(media);
       const available = availability(media);
       if (!Number.isInteger(episode) || episode < 1 || episode > 100000 || (available !== null && episode > available)) throw new Error('This episode has not aired yet.');
-      return rpc(message.type, { media: helperMedia(media), episode, userId: user.id,
+      return rpc(message.type, { media: helperMedia(media), episode, userId: user.id, rewatch: !!message.rewatch && media.mediaListEntry?.status === 'COMPLETED', repeatBase: media.mediaListEntry?.repeat || 0,
         query: message.query || '', torrent: message.torrent || null, fileIndex: message.fileIndex ?? null });
     }
     case 'stop': return rpc('stop', { sessionId: message.sessionId });
@@ -185,6 +185,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (message.type === 'settings') {
       const { user = null } = await chrome.storage.local.get(['clientId', 'user']);
       return { user };
+    }
+    if (message.type === 'cacheSettings') return rpc('settings');
+    if (message.type === 'saveCache') {
+      if (!Number.isInteger(message.cacheGiB) || message.cacheGiB < 1 || message.cacheGiB > 1024) throw new Error('Choose a cache size from 1 to 1024 GiB.');
+      if (!Number.isInteger(message.watchedPercent) || message.watchedPercent < 1 || message.watchedPercent > 99) throw new Error('Choose a watched percentage from 1 to 99.');
+      return rpc('settings', { cacheGiB: message.cacheGiB, watchedPercent: message.watchedPercent });
     }
     if (message.type === 'disconnect') { authGeneration++; await chrome.storage.local.remove(['token', 'user']); return {}; }
     if (message.type === 'token') {

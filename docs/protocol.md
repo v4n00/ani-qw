@@ -39,3 +39,11 @@ Phases are `idle`, `searching`, `metadata`, `verifying`, `buffering`, `playing`,
 Closing the native connection cancels its outstanding searches, not playback. A later connection retrieves the current session and pending completions using `state`. The extension processes completion records serially, verifies account identity and current progress, sends a monotonic AniList update when needed, then acknowledges. API failures and token expiration leave records pending. A duplicate completion is harmless because progress is read before mutation.
 
 The worker uses an exclusive lock in its private runtime directory. Multiple native bridge processes can reconnect to the same worker. Only one playback session exists per Linux user. The worker exits after 45 seconds without active playback/jobs or requests; Chromium can start it again on demand.
+
+## 0.16.0 settings and resume additions
+
+`settings` reads preferences; optional `cacheGiB` (1–1024) and `watchedPercent` (1–99) persist preferences. Defaults are 20 GiB and 80%. Playback snapshots the watched threshold at launch. Cache eviction never runs concurrently with active playback.
+
+`play` accepts `rewatch` and `repeatBase`; completion records preserve these values so full-show Rewatch changes AniList only after threshold completion, including after reconnect. Ordinary older-episode playback remains monotonic. State includes `rewatch` to preserve replay intent.
+
+Resume points are stored separately by account/media/episode, include rewatch-pass identity, save every five seconds and on exit, and clear after completion. mpv receives both window and media titles plus the saved start position.

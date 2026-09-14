@@ -1,3 +1,5 @@
+// Render original UI at 2x for sharp documentation captures, without upscaling pixels.
+if (new URLSearchParams(location.search).get('capture') === '2') document.documentElement.style.zoom = '2';
 history.replaceState({}, '', '/anime/1/Example-Show/');
 const listeners = [];
 let fixtureAuto = true;
@@ -45,7 +47,9 @@ document.getElementById('checks-button').onclick = async () => {
     assert(!overlay.querySelector('dialog'), 'chooser closes after playback');
     assert(!overlay.querySelector('.panel').hidden, 'stream panel visible');
     assert(overlay.querySelector('.stats').textContent.includes('14 seeds'), 'live peer statistics rendered');
-    assert(root.querySelector('.play').disabled && root.querySelector('.play').textContent === 'Streaming', 'Streaming blocks duplicate play');
+    assert(!root.querySelector('.play').disabled && root.querySelector('.play').textContent === 'Streaming', 'Streaming is available as panel toggle');
+    root.querySelector('.play').click(); assert(overlay.querySelector('.panel').hidden,'Streaming hides panel');
+    root.querySelector('.play').click(); assert(!overlay.querySelector('.panel').hidden,'Streaming reopens panel');
     assert(root.querySelector('.arrow').hidden && root.querySelector('.menu').hidden, 'Streaming closes and hides dropdown');
     assert(overlay.querySelector('.notice strong').textContent === 'Streaming in mpv', 'playback state has a separate prominent card');
     overlay.querySelector('.dismiss').click();

@@ -25,3 +25,21 @@ test('completion updates are monotonic and retain completed status', () => {
   assert.deepEqual(progressUpdate(media(), 12), { mediaId: 1, progress: 12, status: 'COMPLETED' });
   assert.equal(progressUpdate(media({ mediaListEntry: { progress: 2, status: 'COMPLETED' } }), 3).status, 'COMPLETED');
 });
+
+test('rewatching continues until final episode and increments repeat count once', () => {
+  const m=media({status:'FINISHED',mediaListEntry:{status:'REPEATING',progress:3,repeat:2}});
+  assert.equal(nextEpisode(m),4);
+  assert.deepEqual(progressUpdate(m,4),{mediaId:1,progress:4,status:'REPEATING'});
+  assert.deepEqual(progressUpdate(m,12),{mediaId:1,progress:12,status:'COMPLETED',repeat:3});
+  assert.equal(progressUpdate({...m,mediaListEntry:{status:'COMPLETED',progress:12,repeat:3}},12),null);
+  assert.equal(nextEpisode(media({mediaListEntry:{status:'COMPLETED',progress:4}})),1);
+});
+
+test('deferred full rewatch and one-off replay have distinct progress rules', () => {
+ const m=media({episodes:24,mediaListEntry:{status:'CURRENT',progress:20}});
+ assert.equal(progressUpdate(m,10),null);
+ const completed={...m,mediaListEntry:{status:'COMPLETED',progress:24,repeat:2}};
+ assert.equal(progressUpdate(completed,10),null);
+ assert.deepEqual(progressUpdate(completed,1,{rewatch:true,repeatBase:2}),{mediaId:1,progress:1,status:'REPEATING'});
+ assert.equal(progressUpdate({...completed,mediaListEntry:{...completed.mediaListEntry,repeat:3}},1,{rewatch:true,repeatBase:2}),null);
+});

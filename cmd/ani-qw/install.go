@@ -29,10 +29,10 @@ func installationAt(mode string, args []string, home, config string) error {
 	if len(args) > 0 {
 		browser = args[0]
 	}
-	profiles := map[string]string{"chromium": "chromium", "google-chrome": "google-chrome", "brave-origin": "BraveSoftware/Brave-Origin"}
+	profiles := map[string]string{"chromium": "chromium", "google-chrome": "google-chrome", "brave-origin": "BraveSoftware/Brave-Origin", "brave": "BraveSoftware/Brave-Browser", "vivaldi": "vivaldi", "vivaldi-snapshot": "vivaldi-snapshot", "google-chrome-beta": "google-chrome-beta", "google-chrome-unstable": "google-chrome-unstable"}
 	profile, ok := profiles[browser]
 	if !ok {
-		return errors.New("browser must be chromium, google-chrome, or brave-origin")
+		return errors.New("browser must be chromium, google-chrome, google-chrome-beta, google-chrome-unstable, brave, brave-origin, vivaldi, or vivaldi-snapshot")
 	}
 	manifest := filepath.Join(config, profile, "NativeMessagingHosts", hostName+".json")
 	binary := filepath.Join(home, ".local", "bin", "ani-qw")
