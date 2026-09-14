@@ -19,7 +19,17 @@ jobs:
         with:
           node-version: '24'
       - run: sudo apt-get update && sudo apt-get install -y mpv ffmpeg
-      - run: make test integration
+      - name: Run tests (with retry for transient module fetch failures)
+        run: |
+          for attempt in 1 2 3; do
+            make test integration && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Test run failed (attempt ${attempt}/3). Retrying..."
+              sleep 5
+            fi
+          done
+          echo "Test run failed after 3 attempts."
+          exit 1
       - run: bash -n install.sh scripts/package.sh
       - run: python3 tests/installer_test.py
   package:
