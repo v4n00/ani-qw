@@ -1,0 +1,12 @@
+reference/
+bin/
+.cache/
+node_modules/
+test-results/
+dist/
+.env
+.env.*
+*.pem
+*.key
+*.log
+PROGRESS.md

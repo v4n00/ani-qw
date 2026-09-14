@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Ani-QW",
+  "version": "0.1.6",
+  "description": "Stream anime from AniList to mpv on Linux.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwjGT2ErKS3OF10tXPGUuISO6lHjEDBBQSzQozlVC9MYJADEgukY2799A1OENUQtUl0EXHrlTQ4rS434cr60GRtxqVaQRMDtT9lyfiDgdKBC+alp+B3tLSGSWj3YJdXDT0ZdbYoLQc4ViQgGjZ1tVNdon9F7PLwzCSXspFaT4665hhi9fs4MI+Kd9u/GOTUcKOXMaTFgjNkCK7yJfxKKx51yMhSkZp60UaNrV9fSPOVbsybgK4edERa4W/JoaDsUMiXcv3y9IKbV9hACcGl4dPFmEQ0DawJu74Zb7vfJhU/vjAff/F3uAzm6VmAdAWLBnvZX0MRF0RfyklEBVz5iiKwIDAQAB",
+  "permissions": [
+    "storage",
+    "nativeMessaging",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://graphql.anilist.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://anilist.co/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Ani-QW settings",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png"
+  }
+}
