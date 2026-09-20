@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const appVersion = "0.1.11"
+const appVersion = "0.1.13"
 const protocolVersion = 1
 const hostName = "co.aniqw.player"
 
