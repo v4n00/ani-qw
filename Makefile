@@ -2,7 +2,9 @@ export GOMODCACHE := $(CURDIR)/.cache/go/mod
 export GOCACHE := $(CURDIR)/.cache/go/build
 NODE ?= node
 
-.PHONY: build test test-go test-js integration doctor notices
+.PHONY: dependencies build test test-go test-js integration doctor notices
+dependencies:
+	go mod download
 build:
 	go build -tags nosqlite -trimpath -o bin/ani-qw ./cmd/ani-qw
 test: test-go test-js

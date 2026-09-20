@@ -10,3 +10,5 @@ dist/
 *.key
 *.log
 PROGRESS.md
+
+.backups/

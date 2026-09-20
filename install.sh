@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo=v4n00/ani-qw
-browser=chromium
+browser=
 source_dir=
 uninstall=false
 while (($#)); do
@@ -14,6 +14,38 @@ while (($#)); do
     *) printf 'Unknown option: %s\n' "$1" >&2; exit 1 ;;
   esac
 done
+# Read from the controlling terminal so the curl | bash form can prompt too.
+if [[ -z $browser && -t 1 ]] && { exec 3<>/dev/tty; } 2>/dev/null; then
+  browsers=()
+  for candidate in chromium google-chrome google-chrome-beta google-chrome-unstable brave brave-origin vivaldi vivaldi-snapshot; do
+    command -v "$candidate" >/dev/null 2>&1 && browsers+=("$candidate")
+  done
+  # Some distributions use alternate executable names.
+  if ! command -v chromium >/dev/null 2>&1 && command -v chromium-browser >/dev/null 2>&1; then browsers+=(chromium); fi
+  if ! command -v brave >/dev/null 2>&1 && command -v brave-browser >/dev/null 2>&1; then browsers+=(brave); fi
+  if (("${#browsers[@]}" == 0)); then
+    browsers=(chromium google-chrome google-chrome-beta google-chrome-unstable brave brave-origin vivaldi vivaldi-snapshot)
+    printf 'No supported browser detected in PATH. Choose your installed browser:
+' >&3
+  else
+    printf 'Choose which browser to register Ani-QW with:
+' >&3
+  fi
+  if [[ -z ${NO_COLOR:-} && ${TERM:-dumb} != dumb ]]; then printf '\033[1;36mAniList Quick Watch\033[0m
+' >&3; fi
+  for i in "${!browsers[@]}"; do printf '  %d) %s
+' "$((i+1))" "${browsers[$i]}" >&3; done
+  while :; do
+    printf 'Browser [1]: ' >&3
+    read -r selection <&3 || { echo 'Installation cancelled.' >&2; exit 1; }
+    selection=${selection:-1}
+    if [[ $selection =~ ^[1-8]$ ]] && ((selection <= ${#browsers[@]})); then browser=${browsers[$((selection-1))]}; break; fi
+    printf 'Enter a number from the list.
+' >&3
+  done
+  exec 3>&-
+fi
+browser=${browser:-chromium}
 case "$browser" in chromium|google-chrome|google-chrome-beta|google-chrome-unstable|brave|brave-origin|vivaldi|vivaldi-snapshot) ;; *) echo 'Unsupported browser.' >&2; exit 1 ;; esac
 [[ $(uname -s) == Linux ]] || { echo 'Ani-QW requires Linux.' >&2; exit 1; }
 [[ $EUID != 0 ]] || { echo 'Run this as your own user, without sudo.' >&2; exit 1; }
@@ -49,3 +81,12 @@ mkdir -p "$destination/extension"
 cp -R -- "$source_dir/extension/." "$destination/extension/"
 "$source_dir/bin/ani-qw" install "$browser"
 printf '\nHelper installed. Finish once in your browser:\n  1. Open chrome://extensions and enable Developer mode.\n  2. Load unpacked: %s\n  3. Open Ani-QW options and click Get AniList token.\n\nFor updates, rerun this script, then reload Ani-QW and your AniList tabs.\n' "$destination/extension"
+
+case ":${PATH:-}:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) printf '
+Note: %s/.local/bin is not in PATH. Browser playback still works.
+Add this to your shell configuration to run ani-qw from a terminal:
+  export PATH="$HOME/.local/bin:$PATH"
+' "$HOME" ;;
+esac

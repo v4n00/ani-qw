@@ -8,12 +8,13 @@ import (
 )
 
 type Settings struct {
-	CacheGiB       int `json:"cacheGiB"`
-	WatchedPercent int `json:"watchedPercent"`
+	Seeding        bool `json:"seeding"`
+	CacheGiB       int  `json:"cacheGiB"`
+	WatchedPercent int  `json:"watchedPercent"`
 }
 
 func readSettings(dir string) (Settings, error) {
-	s := Settings{CacheGiB: 20, WatchedPercent: 80}
+	s := Settings{CacheGiB: 20, WatchedPercent: 80, Seeding: true}
 	b, err := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if os.IsNotExist(err) {
 		return s, nil
@@ -33,6 +34,15 @@ func readSettings(dir string) (Settings, error) {
 	return s, nil
 }
 func (w *worker) settings(value *int, watched ...*int) (Settings, error) {
+	var percent *int
+	if len(watched) > 0 {
+		percent = watched[0]
+	}
+	return w.savePreferences(Request{CacheGiB: value, WatchedPercent: percent})
+}
+
+func (w *worker) savePreferences(r Request) (Settings, error) {
+	value, percent := r.CacheGiB, r.WatchedPercent
 	// Serialize eviction with playback so active data is never removed.
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -40,11 +50,7 @@ func (w *worker) settings(value *int, watched ...*int) (Settings, error) {
 	if err != nil {
 		return s, err
 	}
-	var percent *int
-	if len(watched) > 0 {
-		percent = watched[0]
-	}
-	if value == nil && percent == nil {
+	if value == nil && percent == nil && r.Seeding == nil {
 		return s, nil
 	}
 	if value != nil && (*value < 1 || *value > 1024) {
@@ -58,6 +64,9 @@ func (w *worker) settings(value *int, watched ...*int) (Settings, error) {
 			return s, errors.New("watched percentage must be between 1 and 99")
 		}
 		s.WatchedPercent = *percent
+	}
+	if r.Seeding != nil {
+		s.Seeding = *r.Seeding
 	}
 	if err = atomicJSON(filepath.Join(w.p.State, "settings.json"), s); err != nil {
 		return s, err

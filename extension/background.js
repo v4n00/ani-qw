@@ -126,7 +126,9 @@ function queueSync() {
       const update = progressUpdate(media, c.episode, c);
       if (update) await api('mutation($mediaId:Int!,$progress:Int!,$status:MediaListStatus,$repeat:Int){SaveMediaListEntry(mediaId:$mediaId,progress:$progress,status:$status,repeat:$repeat){id progress}}', update);
       await rpc('ack', { completionId: c.id, userId: viewer.id });
-      pending.delete(c.id); broadcast('synced', { mediaId: c.mediaId, episode: c.episode });
+      pending.delete(c.id);
+      const aired = availability(media);
+      broadcast('synced', { mediaId: c.mediaId, episode: c.episode, sessionId: c.sessionId, nextEpisode: aired !== null && c.episode < aired ? c.episode + 1 : null });
     }
   }).catch(syncError);
 }
@@ -186,11 +188,13 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       const { user = null } = await chrome.storage.local.get(['clientId', 'user']);
       return { user };
     }
+    if (message.type === 'updates') return rpc('updates');
     if (message.type === 'cacheSettings') return rpc('settings');
     if (message.type === 'saveCache') {
       if (!Number.isInteger(message.cacheGiB) || message.cacheGiB < 1 || message.cacheGiB > 1024) throw new Error('Choose a cache size from 1 to 1024 GiB.');
       if (!Number.isInteger(message.watchedPercent) || message.watchedPercent < 1 || message.watchedPercent > 99) throw new Error('Choose a watched percentage from 1 to 99.');
-      return rpc('settings', { cacheGiB: message.cacheGiB, watchedPercent: message.watchedPercent });
+      if (message.seeding !== undefined && typeof message.seeding !== 'boolean') throw new Error('Sharing must be enabled or disabled.');
+      return rpc('settings', { cacheGiB: message.cacheGiB, watchedPercent: message.watchedPercent, seeding: message.seeding });
     }
     if (message.type === 'disconnect') { authGeneration++; await chrome.storage.local.remove(['token', 'user']); return {}; }
     if (message.type === 'token') {

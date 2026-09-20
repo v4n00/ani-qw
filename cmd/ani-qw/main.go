@@ -17,6 +17,7 @@ import (
 	"time"
 )
 
+const appVersion = "0.1.11"
 const protocolVersion = 1
 const hostName = "co.aniqw.player"
 
@@ -101,7 +102,7 @@ func main() {
 	case "install", "uninstall", "doctor":
 		err = installation(mode, os.Args[2:])
 	case "version", "--version":
-		fmt.Printf("Ani-QW 0.16.0 protocol %d\n", protocolVersion)
+		fmt.Printf("Ani-QW %s protocol %d\n", appVersion, protocolVersion)
 	case "native":
 		err = runNative()
 	default:

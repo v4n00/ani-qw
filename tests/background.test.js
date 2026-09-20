@@ -82,6 +82,8 @@ test('background account checks, retry, completion replay, and expired authoriza
   failMutation = false; listeners.alarm({ name: 'sync' });
   await until(() => acknowledgements.length === 1);
   assert.deepEqual(mutations, [{ mediaId: 1, progress: 3, status: 'CURRENT' }]);
+  await until(() => inbox.some(m => m.event === 'synced'));
+  assert.deepEqual(inbox.find(m => m.event === 'synced').data, {mediaId:1,episode:3,sessionId:'session',nextEpisode:4}, 'sync success carries session identity and aired successor');
   nativeMessage({ v: 1, event: 'completion', data: completion });
   await until(() => acknowledgements.length === 2);
   assert.equal(mutations.length, 1, 'duplicate delivery must not repeat mutation');

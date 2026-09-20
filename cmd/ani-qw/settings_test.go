@@ -28,3 +28,30 @@ func TestCacheSettingsPersistence(t *testing.T) {
 		t.Fatal("invalid update changed persisted preference")
 	}
 }
+
+func TestSeedingPreferencesAtomic(t *testing.T) {
+	w := &worker{p: paths{State: t.TempDir(), Cache: t.TempDir()}}
+	original, err := w.settings(nil)
+	if err != nil || !original.Seeding {
+		t.Fatalf("expected legacy default sharing: %+v %v", original, err)
+	}
+	seed := false
+	cache, percent := 30, 90
+	if _, err = w.savePreferences(Request{CacheGiB: &cache, WatchedPercent: &percent, Seeding: &seed}); err != nil {
+		t.Fatal(err)
+	}
+	s, err := w.settings(nil)
+	if err != nil || s.Seeding || s.CacheGiB != 30 || s.WatchedPercent != 90 {
+		t.Fatalf("%+v %v", s, err)
+	}
+	percent = 100
+	seed = true
+	cache = 40
+	if _, err = w.savePreferences(Request{CacheGiB: &cache, WatchedPercent: &percent, Seeding: &seed}); err == nil {
+		t.Fatal("accepted invalid percentage")
+	}
+	s, _ = w.settings(nil)
+	if s.Seeding || s.CacheGiB != 30 || s.WatchedPercent != 90 {
+		t.Fatalf("partial write: %+v", s)
+	}
+}

@@ -5,6 +5,12 @@
   let status = { phase: 'idle' }, activeRequest = null, modal = null, account = '', generation = 0;
   const waiting = new Map();
   let panelPosition = null, dismissed = false, drag = null, launchMediaId = null, closeTimer = null, stoppingSession = null;
+  let route = location.href, watchedSession = null, nextPlayable = null, listEditorOpen = false, refreshTimer = null;
+  let navigationSession = null;
+  try { navigationSession = sessionStorage.getItem('aniqw-navigation-session'); sessionStorage.removeItem('aniqw-navigation-session'); } catch {}
+  window.addEventListener('pagehide', () => {
+    if (status.sessionId) try { sessionStorage.setItem('aniqw-navigation-session', status.sessionId); } catch {}
+  });
   const css = `
     :host{--bg:rgb(var(--color-foreground,250,250,250));--text:rgb(var(--color-text,92,114,138));--blue:rgb(var(--color-blue,61,180,242));--soft:rgb(var(--color-background,237,241,245));font-family:inherit;font-size:14px;line-height:1.5;color:var(--text);text-align:left;scrollbar-color:var(--text) var(--bg)}
     *{box-sizing:border-box;scrollbar-width:thin}::-webkit-scrollbar{width:9px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#7b8ba055;border-radius:9px}button,input{font:inherit}button{cursor:pointer;border:0;color:inherit;background:transparent;border-radius:4px}button:disabled{cursor:default;opacity:.45}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}button:hover:not(:disabled){filter:brightness(1.08)}
@@ -50,10 +56,10 @@
   panel.addEventListener('toggle', positionPanel);
   const body = el('div', { class: 'body' });
   const phaseBox = el('div', { class: 'notice', role: 'status', 'aria-live': 'polite' });
-  const phaseTitle = el('strong'); phaseBox.append(phaseTitle);
+  const phaseTitle = el('strong'); const watchedNotice = el('span'); phaseBox.append(phaseTitle, watchedNotice);
   const countdown = el('p', {class:'muted'});
   function cancelCountdown(){clearInterval(closeTimer);countdown.textContent='';}
-  function startCountdown(){cancelCountdown();let seconds=7; countdown.textContent=`Minimizing in ${seconds}s`; closeTimer=setInterval(()=>{seconds--;countdown.textContent=`Minimizing in ${seconds}s`;if(seconds<=0){cancelCountdown();setDismissed(true);}},1000);}
+  function startCountdown(duration=5){cancelCountdown();let seconds=duration; countdown.textContent=`Minimizing in ${seconds}s`; closeTimer=setInterval(()=>{seconds--;countdown.textContent=`Minimizing in ${seconds}s`;if(seconds<=0){cancelCountdown();setDismissed(true);}},1000);}
   const filename = el('div', { class: 'filename' });
   const bar = el('progress', { max: '100', value: '0', 'aria-label': 'Torrent download progress' });
   const stats = el('div', { class: 'stats' });
@@ -71,8 +77,20 @@
     try { setDismissed(false); await send('play', activeRequest); } catch(e) { warning.textContent = e.message; }
     finally { launchMediaId = null; replay.disabled = false; updatePlayButton(); }
   } }, 'Replay');
+  const nextEpisodeButton = el('button', { class: 'primary', hidden: '', onclick: async () => {
+    if (!nextPlayable || launchMediaId !== null) return;
+    const request = { ...nextPlayable };
+    launchMediaId = request.mediaId; nextEpisodeButton.disabled = true; cancelCountdown(); updatePlayButton();
+    try {
+      const fresh = await send('media', { mediaId: request.mediaId, fresh: true });
+      activeRequest = request;
+      if (fresh.autoSelect) { setDismissed(false); await send('play', request); }
+      else chooser(request);
+    } catch (e) { warning.textContent = e.message; }
+    finally { launchMediaId = null; nextEpisodeButton.disabled = false; updatePlayButton(); }
+  } }, 'Play next episode');
   const choose = el('button', { class: 'link', onclick: () => activeRequest && chooser(activeRequest) }, 'Choose another torrent');
-  const controls = el('div', { class: 'row' }); controls.append(choose, replay, stop);
+  const controls = el('div', { class: 'row' }); controls.append(choose, nextEpisodeButton, replay, stop);
   body.append(phaseBox, bar, filename, stats, warning, sync, countdown, controls); panel.append(summary, body); overlay.append(panel);
 
   function connect() {
@@ -86,7 +104,17 @@
       if (message.event === 'state') renderState(message.data);
       if (message.event === 'connection') { if (control) control.querySelector('.note').textContent = message.data.error; }
       if (message.event === 'sync') { sync.dataset.tone = 'retry'; sync.textContent = message.data.error; panel.open = true; if (!dismissed) panel.hidden = false; }
-      if (message.event === 'synced') { sync.dataset.tone = 'success'; panel.open = true; sync.textContent = message.data.rewatch ? 'Marked Rewatching on AniList.' : `Episode ${message.data.episode} marked watched on AniList.`; if (message.data.mediaId === mediaId) loadMedia(); }
+      if (message.event === 'synced') {
+        if (message.data.sessionId === status.sessionId) {
+          watchedSession = status.sessionId;
+          watchedNotice.textContent = `Episode ${message.data.episode} marked watched`;
+          sync.textContent = '';
+          nextPlayable = message.data.nextEpisode ? { mediaId: message.data.mediaId, episode: message.data.nextEpisode } : null;
+          nextEpisodeButton.hidden = status.phase !== 'idle' || !nextPlayable;
+          if (status.phase === 'idle' && !dismissed) startCountdown(nextPlayable ? 10 : 5);
+        }
+        if (message.data.mediaId === mediaId) loadMedia(true);
+      }
       if (message.event === 'failure') {
         if (message.data.sessionId !== status.sessionId) return;
         warning.textContent = message.data.message; panel.open = true;
@@ -108,25 +136,30 @@
     });
   }
   const bytes = n => n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GiB` : `${(n / 1048576).toFixed(1)} MiB`;
+  const rate = n => n < 1048576 ? `${(n / 1024).toFixed(1)} KiB/s` : `${bytes(n)}/s`;
   function updatePlayButton() {
     const button = control?.querySelector('.play'), split = control?.querySelector('.split');
     if (!button || !model) return;
     const active = status.media?.id === mediaId && status.phase !== 'idle';
-    const starting = launchMediaId === mediaId || (active && ['searching','metadata','verifying'].includes(status.phase));
-    const streaming = active && ['buffering','playing','paused'].includes(status.phase);
+    const starting = launchMediaId === mediaId || (active && ['searching','metadata','verifying','buffering'].includes(status.phase));
+    const streaming = active && ['playing','paused'].includes(status.phase);
     split.classList.toggle('starting', starting); split.classList.toggle('streaming', streaming);
     button.textContent = starting ? 'Starting…' : streaming ? 'Streaming' : active && status.phase === 'stopping' ? 'Stopping…' : model.next ? (model.media.mediaListEntry?.status === 'COMPLETED' ? 'Rewatch' : `Play Episode ${model.next}`) : 'Not yet aired';
     button.disabled = starting || (active && !streaming) || !model.next;
     button.title = streaming ? 'Show or hide playback details' : '';
     const arrow = control.querySelector('.arrow');
-    arrow.hidden = arrow.disabled = starting || active;
+    arrow.hidden = arrow.disabled = starting || active || !model.next;
     if (arrow.disabled) { control.querySelector('.menu').hidden = true; arrow.setAttribute('aria-expanded', 'false'); }
   }
   function renderState(s) {
     if (stoppingSession && s.sessionId === stoppingSession && s.phase !== 'idle') s = { ...s, phase: 'stopping' };
     else stoppingSession = null;
     const previous = status;
-    if (s.sessionId && s.sessionId !== status.sessionId) { dismissed = false; restore.hidden = true; sync.textContent = ''; }
+    if (s.sessionId && s.sessionId !== status.sessionId) {
+      dismissed = navigationSession === s.sessionId; navigationSession = null;
+      restore.hidden = !dismissed; sync.textContent = '';
+      watchedSession = null; nextPlayable = null; nextEpisodeButton.hidden = true;
+    }
     status = s; updatePlayButton();
     if (s.phase === 'idle' && !s.sessionId) return;
     panel.hidden = dismissed;
@@ -138,23 +171,25 @@
       idle: s.endReason === 'closed' ? 'mpv was closed' : s.endReason === 'error' ? 'Playback failed' : 'Playback stopped'
     };
     const title = phases[s.phase] || 'Preparing playback';
+    watchedNotice.textContent = watchedSession === s.sessionId ? `Episode ${s.episode} marked watched` : '';
     phaseTitle.textContent = title;
     phaseBox.dataset.tone = ['playing','paused'].includes(s.phase) ? 'playing' : s.phase === 'idle' ? (s.endReason === 'error' ? 'error' : 'closed') : 'starting';
     if (previous.phase !== s.phase) panel.open = true;
     filename.textContent = s.filename || 'Finding your episode…'; bar.value = s.percent || 0;
     stats.replaceChildren(...[
       `${(s.percent || 0).toFixed(1)}% · ${bytes(s.downloaded || 0)} / ${bytes(s.size || 0)}`,
-      `↓ ${bytes(s.downloadSpeed || 0)}/s  ↑ ${bytes(s.uploadSpeed || 0)}/s`,
+      `↓ ${rate(s.downloadSpeed || 0)}${s.seeding === false ? "" : `  ↑ ${rate(s.uploadSpeed || 0)}`}`,
       `${s.seeds || 0} seeds · ${s.peers || 0} peers`,
       s.duration ? `${Math.floor(s.position / 60)} / ${Math.floor(s.duration / 60)} min` : 'Waiting for video'
     ].map(text => el('span', {}, text)));
     warning.textContent = s.warning || '';
     stop.disabled = s.phase === 'idle' || s.phase === 'stopping'; stop.textContent = s.phase === 'stopping' ? 'Stopping…' : 'Stop';
+    nextEpisodeButton.hidden = s.phase !== 'idle' || !nextPlayable;
     stop.hidden = s.phase === 'idle'; replay.hidden = s.phase !== 'idle' || !s.media?.id;
     if (s.media?.id) activeRequest = { mediaId: s.media.id, episode: s.episode, rewatch:!!s.rewatch };
     if (s.phase !== 'idle') cancelCountdown();
-    else if (previous.phase !== 'idle' && !s.warning) {
-      startCountdown();
+    else if (previous.phase !== 'idle' && !s.warning && !dismissed) {
+      startCountdown(watchedSession === s.sessionId && nextPlayable ? 10 : 5);
     }
   }
   function showError(e) {
@@ -165,17 +200,17 @@
     const a = document.querySelector('#nav a[href^="/user/"]');
     return a?.getAttribute('href')?.match(/^\/user\/([^/]+)/)?.[1] || '';
   }
-  async function loadMedia() {
+  async function loadMedia(fresh = false) {
     if (!mediaId || !control) return;
     const id = mediaId, g = ++generation;
     try {
-      const data = await send('media', { mediaId: id });
+      const data = await send('media', { mediaId: id, fresh });
       if (g !== generation || id !== mediaId) return;
       model = data; renderControl();
     } catch (e) { if (g === generation && control) { showError(e); const b = control.querySelector('.play'); b.disabled = false; const authError = /connect|authoriz|account/i.test(e.message); b.textContent = authError ? 'Connect AniList' : 'Retry loading playback'; b.onclick = authError ? () => send('settings').catch(showError) : loadMedia; } }
   }
   async function begin(episode) {
-    if (launchMediaId !== null || (status.media?.id === mediaId && status.phase !== 'idle' && (episode === undefined || episode === status.episode || ['searching','metadata','verifying','stopping'].includes(status.phase)))) return;
+    if (launchMediaId !== null || (status.media?.id === mediaId && status.phase !== 'idle' && (episode === undefined || episode === status.episode || ['searching','metadata','verifying','buffering','stopping'].includes(status.phase)))) return;
     launchMediaId = mediaId; updatePlayButton();
     try {
       const menu = control?.querySelector('.menu'); if (menu) menu.hidden = true;
@@ -194,7 +229,7 @@
   function renderControl() {
     const wrap = el('div', { class: 'wrap' });
     const split = el('div', { class: 'split' });
-    const play = el('button', { class: 'play' }, model.next ? (model.media.mediaListEntry?.status === 'COMPLETED' ? 'Rewatch' : `Play Episode ${model.next}`) : 'Not yet aired'); play.disabled = !model.next; play.onclick = () => {if(status.media?.id === mediaId && ['buffering','playing','paused'].includes(status.phase)){cancelCountdown();setDismissed(!panel.hidden);if(!panel.hidden)panel.open=true;}else begin();};
+    const play = el('button', { class: 'play' }, model.next ? (model.media.mediaListEntry?.status === 'COMPLETED' ? 'Rewatch' : `Play Episode ${model.next}`) : 'Not yet aired'); play.disabled = !model.next; play.onclick = () => {if(status.media?.id === mediaId && ['playing','paused'].includes(status.phase)){cancelCountdown();setDismissed(!panel.hidden);if(!panel.hidden)panel.open=true;}else begin();};
     const arrow = el('button', { class: 'arrow', 'aria-label': 'Playback options', 'aria-expanded': 'false' }); arrow.append(el('span', { class: [...document.fonts].some(f => f.family.replaceAll('"', '') === 'element-icons') ? 'chevron' : 'chevron fallback', 'aria-hidden': 'true' }, '\ue603'));
     const menu = el('div', { class: 'menu', hidden: '' });
     arrow.onclick = () => { menu.hidden = !menu.hidden; arrow.setAttribute('aria-expanded', String(!menu.hidden)); };
@@ -278,6 +313,15 @@
   }
 
   function reconcile() {
+    if (route !== location.href) {route = location.href; cancelCountdown(); if(status.sessionId)setDismissed(true);}
+    const editor = document.querySelector('.list-editor');
+    const editorOpen = !!editor && editor.getBoundingClientRect().width > 0;
+    if (listEditorOpen && !editorOpen && mediaId) {
+      clearTimeout(refreshTimer);
+      const editedMediaId = mediaId;
+      refreshTimer = setTimeout(() => { if (mediaId === editedMediaId) loadMedia(true); }, 800);
+    }
+    listEditorOpen = editorOpen;
     const id = Number(location.pathname.match(/^\/anime\/(\d+)(?:\/|$)/)?.[1]) || null;
     const nextAccount = accountName();
     if (nextAccount !== account || !port) { account = nextAccount; send('hello', { account }).then(data => { panelPosition = data.panelPosition; positionPanel(); }).catch(() => {}); if (control) loadMedia(); }

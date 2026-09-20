@@ -36,7 +36,7 @@ Install the latest release with:
 curl -fsSL https://raw.githubusercontent.com/v4n00/ani-qw/master/install.sh | bash
 ```
 
-The Bash installer downloads the matching Linux x86_64 or ARM64 release, checks its SHA-256 checksum, installs the helper for your user, and places the extension in `~/.local/share/ani-qw/extension` (or `$XDG_DATA_HOME/ani-qw/extension`). No sudo is used by the installer.
+The Bash installer downloads the matching Linux x86_64 or ARM64 release, checks its SHA-256 checksum, installs the helper for your user, and places the extension in `~/.local/share/ani-qw/extension` (or `$XDG_DATA_HOME/ani-qw/extension`). No sudo is used by the installer. It offers detected browsers in an interactive terminal; use `--browser` to select one explicitly. Noninteractive runs default to Chromium. It also tells you if `~/.local/bin` is missing from PATH (browser playback still works).
 
 1. Open `chrome://extensions` and enable **Developer mode**.
 2. Choose **Load unpacked** and select `~/.local/share/ani-qw/extension`.
@@ -76,15 +76,15 @@ Authorize the same account that is logged into the AniList website. The access t
 ## Playback
 
 - **Play Episode N** fetches your current AniList progress before choosing the next unwatched aired episode. If caught up, it replays the last aired episode; after finishing a completed show, it starts at episode 1.
-- The arrow opens an episode picker and the persistent **Automatically select torrent** toggle. Known unaired episodes are disabled. When availability is unknown, enter an episode number explicitly.
+- The arrow opens an episode picker and the persistent **Automatically select torrent** toggle. Known unaired episodes are disabled; the arrow is hidden for an unaired show. Saving AniList’s progress editor refreshes the extension’s episode target. When availability is unknown, enter an episode number explicitly.
 - Automatic selection prefers seeded, English-translated 1080p releases with a credible title, season, and episode match. If no reliable match exists, the manual chooser opens.
 - The manual chooser searches Nyaa and shows resolution, size, seeds, and leechers. Choose a torrent, then its video file. A likely episode is highlighted; unusual filenames or absolute numbering may need your judgment.
-- A movable, collapsible playback panel shows downloading, buffering, playback, and peer statistics. **Choose another torrent** replaces the current selection; **Stop** ends playback. Clicking **Streaming** toggles the panel; normal closure shows a countdown before minimizing.
+- A movable, collapsible playback panel shows downloading, buffering, playback, and peer statistics. **Choose another torrent** replaces the current selection; **Stop** ends playback. Clicking **Streaming** toggles the panel; navigation minimizes it, and normal closure shows a five-second countdown. After successful watch synchronization, an available next episode gets a **Play next episode** button and a ten-second countdown.
 - Reaching your configured watched percentage (80% by default) of a known video duration marks the episode watched, including seeking beyond that point. One-off episode replays never reduce AniList progress. Completion records survive browser closure and are acknowledged only after a successful AniList update.
 - Unfinished episodes resume from their saved position, scoped to your account and episode. Positions are saved every five seconds and on normal exit; watched episodes clear their resume point. There is no next-episode autoplay.
 - **Rewatch** starts a new viewing pass for a completed show. AniList changes to Rewatching only after the watched threshold is reached. Choosing an older episode manually is a one-off replay and never lowers existing progress.
 
-The helper retains up to **20 GiB of allocated torrent data by default**, configurable from 1–1024 GiB in extension settings, evicting the least-recently-used inactive torrents. An active session may exceed the limit temporarily. Sharing and downloading stop when mpv exits. Cached pieces are verified before reuse; sparse file length is not treated as proof of downloaded data.
+The helper retains up to **20 GiB of allocated torrent data by default**, configurable from 1–1024 GiB in extension settings, evicting the least-recently-used inactive torrents. An active session may exceed the limit temporarily. **Share while playing** enables torrent uploads by default. Turn it off in Preferences to disable video uploads and hide upload speed; tracker and peer-protocol traffic can still appear in system monitors. Changes apply to the next playback. Sharing and downloading stop when mpv exits. Cached pieces are verified before reuse; sparse file length is not treated as proof of downloaded data.
 
 ## Diagnostics and updates
 
@@ -106,6 +106,8 @@ Default storage locations follow the XDG environment variables:
 | Brave Origin native host | `~/.config/BraveSoftware/Brave-Origin/NativeMessagingHosts/co.aniqw.player.json` |
 
 If the helper cannot connect, verify the browser argument, extension ID, and binary path with Doctor. If playback stalls, try a better-seeded release. Disk exhaustion requires freeing space on the cache filesystem. Expired AniList authorization requires reconnecting in extension options; pending completion records remain saved.
+
+Use **Check for updates** in extension settings to compare against the latest published GitHub release. The check is manual, requires no GitHub account, and never installs anything automatically.
 
 To update, stop playback and close the browser, rerun the installer, then reopen the browser and reload Ani-QW in `chrome://extensions`. An old worker may remain alive briefly until its clients become idle. To uninstall:
 

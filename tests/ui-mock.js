@@ -3,6 +3,8 @@ if (new URLSearchParams(location.search).get('capture') === '2') document.docume
 history.replaceState({}, '', '/anime/1/Example-Show/');
 const listeners = [];
 let fixtureAuto = true;
+let freshRequests = 0;
+let fixtureProgress = null;
 let fixtureState = { phase: 'idle' };
 let fixturePanelPosition = null;
 const media = id => ({ id, title: { romaji: id === 1 ? 'Example Show' : 'Another Show' }, format: 'TV', status: 'RELEASING', episodes: id === 1 ? 12 : 60, mediaListEntry: { progress: id === 1 ? 4 : 28 } });
@@ -12,11 +14,12 @@ window.chrome = { runtime: { connect() { return {
     let data = {};
     if (message.type === 'hello') data.panelPosition = fixturePanelPosition;
     if (message.type === 'panelPosition') fixturePanelPosition = message.position;
-    if (message.type === 'media') data = { media: media(message.mediaId), next: message.mediaId === 1 ? 5 : 29, available: message.mediaId === 1 ? 7 : 45, autoSelect: fixtureAuto };
+    if (message.type === 'media' && message.fresh) freshRequests++;
+    if (message.type === 'media') data = { media: media(message.mediaId), next: message.mediaId === 3 ? null : fixtureProgress !== null ? fixtureProgress + 1 : message.mediaId === 1 ? 5 : 29, available: message.mediaId === 1 ? 7 : 45, autoSelect: fixtureAuto };
     if (message.type === 'autoSelect') fixtureAuto = message.value;
     if (message.type === 'search') data = [{ name: '[Group] Example Show - 05 [1080p]', hash: '1'.repeat(40), size: '1.2 GiB', resolution: '1080p', seeders: 42, leechers: 3 }];
     if (message.type === 'files') data = [{ index: 0, name: 'Example Show - 05.mkv', size: 1288490188, suggested: true }];
-    if (message.type === 'play') { fixtureState = { sessionId: 'fixture', media: { id: message.mediaId, title: 'Example Show' }, episode: message.episode, phase: 'playing', filename: 'Example Show - 05.mkv', percent: 32.4, downloaded: 414720000, size: 1288490188, downloadSpeed: 2097152, uploadSpeed: 524288, seeds: 14, peers: 23, position: 345, duration: 1440 }; emit('state', fixtureState); }
+    if (message.type === 'play') { fixtureState = { sessionId: crypto.randomUUID(), media: { id: message.mediaId, title: 'Example Show' }, episode: message.episode, phase: 'playing', filename: 'Example Show - 05.mkv', percent: 32.4, downloaded: 414720000, size: 1288490188, downloadSpeed: 2097152, uploadSpeed: 524288, seeds: 14, peers: 23, position: 345, duration: 1440 }; emit('state', fixtureState); }
     if (message.type === 'stop') { fixtureState = { ...fixtureState, phase: 'idle', endReason: 'stopped', downloadSpeed: 0, uploadSpeed: 0 }; emit('state', fixtureState); }
     for (const listener of listeners) listener({ id: message.id, data });
   }, 50); }
@@ -30,6 +33,7 @@ document.getElementById('checks-button').onclick = async () => {
   const assert = (condition, message) => { if (!condition) throw new Error(message); output.textContent += `PASS ${message}\n`; };
   const pause = () => new Promise(resolve => setTimeout(resolve, 300));
   try {
+    for (let i=0;i<20 && document.getElementById('ani-qw-controls')?.shadowRoot.querySelector('.play')?.disabled;i++) await pause();
     const host = document.getElementById('ani-qw-controls'), root = host.shadowRoot;
     assert(host.previousElementSibling.classList.contains('actions'), 'controls follow action row');
     assert(root.querySelector('.play').textContent.includes('Episode 5'), 'main play targets episode 5');
@@ -75,5 +79,33 @@ document.getElementById('checks-button').onclick = async () => {
     longRoot.querySelector('[aria-label="Next episodes"]').click();
     assert(longRoot.querySelectorAll('.episode:disabled').length > 0, 'later page marks unaired episodes unavailable');
     assert(!longRoot.textContent.includes('Ani-QW settings'), 'settings removed from dropdown');
+    assert(overlay.querySelector('.panel').hidden, 'anime navigation minimizes playback');
+    const editor = document.createElement('div'); editor.className = 'list-editor'; editor.textContent = 'Fixture list editor'; document.body.append(editor);
+    await pause(); const beforeRefresh = freshRequests; fixtureProgress = 30; editor.remove();
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    assert(freshRequests === beforeRefresh + 1, 'closing list editor makes one fresh progress request');
+    assert(document.querySelector('#ani-qw-controls').shadowRoot.querySelector('.play').textContent.includes('31'), 'manual progress edit updates Play target');
+    fixtureState = { ...fixtureState, sessionId:'next-fixture', phase:'buffering', media:{id:2,title:'Another Show'}, episode:31, seeding:false };
+    emit('state',fixtureState);
+    const liveRoot = document.querySelector('#ani-qw-controls').shadowRoot;
+    assert(liveRoot.querySelector('.play').disabled && liveRoot.querySelector('.play').textContent==='Starting…', 'buffering remains Starting until mpv advances');
+    assert(!overlay.querySelector('.stats').textContent.includes('↑'), 'disabled sharing hides upload rate');
+    fixtureState = {...fixtureState,phase:'playing'};emit('state',fixtureState);
+    emit('synced',{sessionId:'next-fixture',mediaId:2,episode:31,nextEpisode:32});await pause();
+    assert(overlay.querySelector('.notice').textContent.includes('Episode 31 marked watched'), 'watched confirmation appears inside main status card');
+    fixtureState = {...fixtureState,phase:'idle',endReason:'closed'};emit('state',fixtureState);
+    assert(overlay.querySelector('.notice').textContent.includes('mpv was closed'), 'closed state remains alongside watched confirmation');
+    assert(overlay.textContent.includes('Minimizing in 10s'), 'watched episode with successor gets ten seconds');
+    const playNext = [...overlay.querySelectorAll('button')].find(b=>b.textContent==='Play next episode');
+    assert(!playNext.hidden, 'watched episode offers next episode');
+    fixtureAuto = true; playNext.click(); await pause();
+    assert(fixtureState.episode===32, 'Play next starts exactly the following episode');
+    history.pushState({},'', '/home'); document.querySelector('h1').textContent='Home'; await pause();
+    assert(overlay.querySelector('.panel').hidden, 'non-anime navigation minimizes playback');
+    assert(!document.querySelector('#ani-qw-controls'), 'non-anime navigation removes episode controls');
+    history.pushState({},'', '/anime/3/Unaired/'); document.querySelector('h1').textContent='Unaired'; await pause();await pause();
+    const unairedRoot=document.querySelector('#ani-qw-controls').shadowRoot;
+    assert(unairedRoot.querySelector('.arrow').hidden && unairedRoot.querySelector('.arrow').disabled, 'unreleased anime hides and disables dropdown');
+
   } catch (e) { output.textContent += `FAIL ${e.message}\n`; }
 };

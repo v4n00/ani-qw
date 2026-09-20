@@ -24,6 +24,7 @@ type Completion struct {
 	SessionID  string `json:"sessionId"`
 }
 type State struct {
+	Seeding       bool    `json:"seeding"`
 	Rewatch       bool    `json:"rewatch,omitempty"`
 	UserID        int     `json:"userId"`
 	Hash          string  `json:"hash,omitempty"`
@@ -171,8 +172,10 @@ func (w *worker) serve(p *peer) {
 		w.lastUse = time.Now()
 		w.mu.Unlock()
 		switch r.Command {
+		case "updates":
+			go func(r Request) { result, err := checkUpdates(); w.reply(p, r, result, err) }(r)
 		case "settings":
-			s, err := w.settings(r.CacheGiB, r.WatchedPercent)
+			s, err := w.savePreferences(r)
 			w.reply(p, r, s, err)
 		case "state":
 			w.mu.Lock()

@@ -1,9 +1,9 @@
 # Publishing a release
 
 1. Run `make test integration` and `python3 tests/installer_test.py`. Check the UI fixture in Chromium.
-2. Set `extension/manifest.json` to the release version. Review source changes, notices and README images for private information.
+2. Set `extension/manifest.json` and `appVersion` in `cmd/ani-qw/main.go` to the same release version. Run `python3 scripts/check_version.py`. Review source changes, notices and README images for private information.
 3. Build `bash scripts/package.sh amd64` and `bash scripts/package.sh arm64`; inspect the archives and `dist/SHA256SUMS`.
-4. Commit the intended files, then push `master`. Push a matching tag, for example `v0.16.0` for extension version `0.16.0`.
+4. Commit the intended files, then push `master`. Push a matching tag, for example `v0.1.11` for version `0.1.11`.
 5. The workflow tests, packages both architectures, and creates a GitHub Release with binary bundles, extension ZIP, source archive and checksums. A tag/version mismatch fails publication.
 6. Test the documented installer against that published release from a fresh user account.
 
@@ -20,3 +20,14 @@ Release bundles contain a plain unpacked extension. The installer copies it into
 ## Validation limits
 
 Local tests cover controlled torrent streaming/seeking and UI fixtures. GitHub Actions and the public download installer can only be confirmed after a release is pushed; preparing workflow files does not run them remotely. Real Nyaa availability and AniList limits vary. Buffering performance relative to Seanime remains unbenchmarked.
+
+
+## History and tag hygiene
+
+Use descriptive Conventional Commit messages for new work, such as `fix: match repeated Re:ZERO season annotations` or `feat: add playback sharing preferences`. Use a new version for each published release; don't move existing tags to different code.
+
+Changing an existing commit message changes its hash and all descendant hashes. There is no in-place, nondestructive rename of published commits. Preserve history; explain older CI-only releases in release notes if needed. GitHub release titles and descriptions can be edited without rewriting Git commits or tags.
+
+Audit of the existing local refs: `v0.1.8` and `v0.1.9` both point to `0edbfd2`; `v0.1.10` points to `4d93a4b`, whose extension still reported 0.1.9. These historical tags are retained. The next prepared version is 0.1.11. The workflow now validates both embedded versions against the pushed tag before packaging.
+
+Before any future history rewrite, make a fresh source archive and `git bundle create history.bundle --all`, and coordinate with anyone using existing clones. Local backup directories are ignored and excluded from release archives.

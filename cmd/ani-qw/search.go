@@ -233,13 +233,24 @@ func searchQueries(m Media, ep int, custom string) []string {
 	}
 	for _, title := range append([]string{m.Title}, m.Titles...) {
 		name, _ := titleIdentity(title)
-		base, _, _ := strings.Cut(name, ":")
-		add(base)
+		if normalized(name) == "" {
+			name = title
+		}
+		base, _, subtitle := strings.Cut(name, ":")
+		if !subtitle || len([]rune(normalized(base))) >= 4 {
+			add(base)
+		}
 		add(name)
 	}
 	if m.Status == "FINISHED" && m.Format != "MOVIE" {
 		name, _ := titleIdentity(m.Title)
-		base, _, _ := strings.Cut(name, ":")
+		if normalized(name) == "" {
+			name = m.Title
+		}
+		base, _, subtitle := strings.Cut(name, ":")
+		if subtitle && len([]rune(normalized(base))) < 4 {
+			base = name
+		}
 		out = append(out, normalized(base)+" (batch|complete)")
 	}
 	return out
@@ -249,8 +260,10 @@ func credible(r Release, m Media, ep int) bool {
 		return false
 	}
 	rm := habari.Parse(r.Name)
-	if len(rm.SeasonNumber) > 1 {
-		return false
+	for _, sn := range rm.SeasonNumber {
+		if strings.TrimLeft(sn, "0") != season(rm) {
+			return false
+		}
 	}
 	releaseName, rs := titleIdentity(r.Name)
 	expected := mediaSeason(m)

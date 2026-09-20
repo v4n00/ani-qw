@@ -31,12 +31,13 @@ type fileChoice struct {
 	Suggested bool   `json:"suggested"`
 }
 
-func torrentClient(dir string) (*torrent.Client, error) {
+func torrentClient(dir string, seed ...bool) (*torrent.Client, error) {
 	cfg := torrent.NewDefaultClientConfig()
 	cfg.DataDir = dir
 	cfg.ListenPort = 0
 	cfg.NoDefaultPortForwarding = true
-	cfg.Seed = true
+	cfg.Seed = len(seed) > 0 && seed[0]
+	cfg.NoUpload = !cfg.Seed
 	return torrent.NewClient(cfg)
 }
 func loadTorrent(ctx context.Context, c *torrent.Client, r Release) (*torrent.Torrent, error) {
@@ -157,7 +158,12 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 		return err
 	}
 	os.Chtimes(dir, time.Now(), time.Now())
-	c, err := torrentClient(dir)
+	prefs, err := readSettings(w.p.State)
+	if err != nil {
+		return err
+	}
+	w.update(sid, func(s *State) { s.Seeding = prefs.Seeding })
+	c, err := torrentClient(dir, prefs.Seeding)
 	if err != nil {
 		return err
 	}
@@ -217,10 +223,6 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 	ipc := filepath.Join(w.p.Runtime, "mpv-"+sid[:8]+".sock")
 	defer os.Remove(ipc)
 	streamURL := "http://" + l.Addr().String() + "/" + token + "/video"
-	prefs, err := readSettings(w.p.State)
-	if err != nil {
-		return err
-	}
 	start := readResume(w.p.State, r)
 	title := r.Media.Title + fmt.Sprintf(" · Episode %d", r.Episode)
 	cmd := exec.CommandContext(ctx, "mpv", "--force-media-title="+title, fmt.Sprintf("--start=%.3f", start), "--input-ipc-server="+ipc, "--force-window=yes", "--idle=no", "--keep-open=no", "--title="+r.Media.Title+fmt.Sprintf(" · Episode %d", r.Episode), "--", streamURL)
@@ -258,6 +260,7 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 	pos := start
 	var duration float64
 	paused, buffering := false, true
+	started := false
 	completed := false
 	defer func() {
 		if err := saveResume(w.p.State, r, pos, completed); err != nil {
@@ -288,6 +291,7 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 			switch u.Name {
 			case "time-pos":
 				pos = u.Number
+				started = started || pos > start
 			case "duration":
 				duration = u.Number
 			case "pause":
@@ -339,7 +343,7 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 				if paused {
 					s.Phase = "paused"
 				}
-				if buffering {
+				if buffering || !started {
 					s.Phase = "buffering"
 				}
 				s.Position = pos

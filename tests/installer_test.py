@@ -20,13 +20,67 @@ class InstallerTest(unittest.TestCase):
             helper = package / 'bin/ani-qw'
             helper.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$*" > "$ANI_QW_TEST_CALL"\n')
             helper.chmod(0o755)
-            env = dict(os.environ, XDG_DATA_HOME=str(base / 'data'), ANI_QW_TEST_CALL=str(base / 'call'))
+            env = dict(os.environ, PATH='/usr/bin:/bin', XDG_DATA_HOME=str(base / 'data'), ANI_QW_TEST_CALL=str(base / 'call'))
             result = subprocess.run(['bash', str(ROOT / 'install.sh'), '--from', str(package), '--browser', 'chromium'], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('is not in PATH', result.stdout)
             self.assertEqual((base / 'call').read_text().strip(), 'install chromium')
             self.assertTrue((base / 'data/ani-qw/extension/manifest.json').is_file())
             result = subprocess.run(['bash', str(ROOT / 'install.sh'), '--browser', 'not-a-browser'], env=env, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
+
+    def test_interactive_browser_selection(self):
+        import pty
+        import select
+        import time
+        with tempfile.TemporaryDirectory(prefix='ani-qw interactive ') as tmp:
+            base = Path(tmp)
+            package = base / 'package'
+            (package / 'bin').mkdir(parents=True)
+            (package / 'extension').mkdir()
+            (package / 'extension/manifest.json').write_text('{}')
+            helper = package / 'bin/ani-qw'
+            helper.write_text('#!/bin/sh\nprintf "%s" "$*" > "$ANI_QW_TEST_CALL"\n')
+            helper.chmod(0o755)
+            fakebin = base / 'fakebin'
+            fakebin.mkdir()
+            browser = fakebin / 'chromium'
+            browser.write_text('#!/bin/sh\nexit 0\n')
+            browser.chmod(0o755)
+            env = dict(os.environ, PATH=str(fakebin)+':/usr/bin:/bin', XDG_DATA_HOME=str(base/'data'), ANI_QW_TEST_CALL=str(base/'call'), NO_COLOR='1')
+            pid, fd = pty.fork()
+            if pid == 0:
+                os.execve('/bin/bash', ['bash', str(ROOT/'install.sh'), '--from', str(package)], env)
+            output = b''
+            answered = False
+            finished = False
+            try:
+                deadline = time.monotonic()+10
+                while time.monotonic() < deadline:
+                    if select.select([fd], [], [], .1)[0]:
+                        try:
+                            data = os.read(fd, 65536)
+                        except OSError:
+                            break
+                        if not data:
+                            break
+                        output += data
+                    if b'Browser [1]:' in output and not answered:
+                        os.write(fd, b'1\n')
+                        answered = True
+                done, status = os.waitpid(pid, os.WNOHANG)
+                if done:
+                    finished = True
+                    self.assertEqual(os.waitstatus_to_exitcode(status), 0, output.decode())
+                self.assertTrue(answered, output.decode())
+                self.assertEqual((base/'call').read_text(), 'install chromium')
+            finally:
+                if not finished:
+                    import signal
+                    try: os.kill(pid, signal.SIGTERM)
+                    except ProcessLookupError: pass
+                    os.waitpid(pid, 0)
+                os.close(fd)
 
     def test_download_checksum_and_install(self):
         with tempfile.TemporaryDirectory(prefix='ani-qw download ') as tmp:

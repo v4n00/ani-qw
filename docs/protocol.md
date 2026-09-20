@@ -40,10 +40,12 @@ Closing the native connection cancels its outstanding searches, not playback. A 
 
 The worker uses an exclusive lock in its private runtime directory. Multiple native bridge processes can reconnect to the same worker. Only one playback session exists per Linux user. The worker exits after 45 seconds without active playback/jobs or requests; Chromium can start it again on demand.
 
-## 0.16.0 settings and resume additions
+## Settings, updates and resume
 
-`settings` reads preferences; optional `cacheGiB` (1–1024) and `watchedPercent` (1–99) persist preferences. Defaults are 20 GiB and 80%. Playback snapshots the watched threshold at launch. Cache eviction never runs concurrently with active playback.
+`settings` reads preferences; optional `cacheGiB` (1–1024) and `watchedPercent` (1–99) persist preferences. Optional `seeding` is boolean. Defaults are 20 GiB, 80%, and sharing enabled. All supplied preferences are validated before one atomic write. Playback snapshots the watched threshold and sharing setting at launch. State includes `seeding`; disabled sharing hides upload statistics. Torrent inspection never uploads video data. Cache eviction never runs concurrently with active playback.
 
 `play` accepts `rewatch` and `repeatBase`; completion records preserve these values so full-show Rewatch changes AniList only after threshold completion, including after reconnect. Ordinary older-episode playback remains monotonic. State includes `rewatch` to preserve replay intent.
 
 Resume points are stored separately by account/media/episode, include rewatch-pass identity, save every five seconds and on exit, and clear after completion. mpv receives both window and media titles plus the saved start position.
+
+`updates` returns `{version,url,helperVersion}` for the latest stable published GitHub release. It has a 12-second network timeout and caches results/errors for one minute. It never downloads or runs an update.

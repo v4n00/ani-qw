@@ -9,3 +9,5 @@
 #cache-settings button[type="submit"]{width:100%}
 
 #disconnect,#token-connect button[type="submit"],#check-helper{width:100%}
+
+.preference{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px 0;border-bottom:1px solid #8882}.preference:first-child{padding-top:0}.preference:last-of-type{margin-bottom:22px}.preference label{font-size:15px;font-weight:600}.preference .hint{margin:4px 0;max-width:290px}.preference .inline{flex-shrink:0}.preference input[type=checkbox]{width:22px;height:22px;accent-color:#3db4f2;flex-shrink:0;margin:0}.preference input[type=number]{width:85px!important}#check-updates{width:100%;margin-top:12px}#update-message{font-size:13px}@media(max-width:420px){.preference{gap:12px}.preference .inline{gap:5px}}

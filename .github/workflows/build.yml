@@ -19,17 +19,18 @@ jobs:
         with:
           node-version: '24'
       - run: sudo apt-get update && sudo apt-get install -y mpv ffmpeg
-      - name: Run tests (with retry for transient module fetch failures)
+      - name: Fetch dependencies (retry transient network failures)
         run: |
           for attempt in 1 2 3; do
-            make test integration && exit 0
-            if [ "$attempt" -lt 3 ]; then
-              echo "Test run failed (attempt ${attempt}/3). Retrying..."
-              sleep 5
-            fi
+            make dependencies && exit 0
+            sleep 5
           done
-          echo "Test run failed after 3 attempts."
           exit 1
+      - run: make test integration
+      - name: Verify release versions
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python3 scripts/check_version.py
       - run: bash -n install.sh scripts/package.sh
       - run: python3 tests/installer_test.py
   package:
@@ -70,4 +71,9 @@ jobs:
         run: |
           cd dist
           sha256sum ./*.tar.gz ./*.zip | sed 's|  ./|  |' > SHA256SUMS
-          gh release create "$TAG" --verify-tag --generate-notes ./*.tar.gz ./*.zip SHA256SUMS
+          notes="../docs/releases/${TAG#v}.md"
+          if [[ -f "$notes" ]]; then
+            gh release create "$TAG" --verify-tag --title "Ani-QW $TAG" --notes-file "$notes" ./*.tar.gz ./*.zip SHA256SUMS
+          else
+            gh release create "$TAG" --verify-tag --generate-notes ./*.tar.gz ./*.zip SHA256SUMS
+          fi
