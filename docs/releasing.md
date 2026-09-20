@@ -3,7 +3,7 @@
 1. Run `make test integration` and `python3 tests/installer_test.py`. Check the UI fixture in Chromium.
 2. Set `extension/manifest.json` and `appVersion` in `cmd/ani-qw/main.go` to the same release version. Run `python3 scripts/check_version.py`. Review source changes, notices and README images for private information.
 3. Build `bash scripts/package.sh amd64` and `bash scripts/package.sh arm64`; inspect the archives and `dist/SHA256SUMS`.
-4. Commit the intended files, then push `master`. Push a matching tag, for example `v0.1.11` for version `0.1.11`.
+4. Commit the intended files, then push `master`. Push a matching tag, for example `v0.1.12` for version `0.1.12`.
 5. The workflow tests, packages both architectures, and creates a GitHub Release with binary bundles, extension ZIP, source archive and checksums. A tag/version mismatch fails publication.
 6. Test the documented installer against that published release from a fresh user account.
 
@@ -28,6 +28,6 @@ Use descriptive Conventional Commit messages for new work, such as `fix: match r
 
 Changing an existing commit message changes its hash and all descendant hashes. There is no in-place, nondestructive rename of published commits. Preserve history; explain older CI-only releases in release notes if needed. GitHub release titles and descriptions can be edited without rewriting Git commits or tags.
 
-Audit of the existing local refs: `v0.1.8` and `v0.1.9` both point to `0edbfd2`; `v0.1.10` points to `4d93a4b`, whose extension still reported 0.1.9. These historical tags are retained. The next prepared version is 0.1.11. The workflow now validates both embedded versions against the pushed tag before packaging.
+Audit of the existing local refs: `v0.1.8` and `v0.1.9` both point to `0edbfd2`; `v0.1.10` points to `4d93a4b`, whose extension still reported 0.1.9. These historical tags are retained. Tag0.1.11 passed tests but hit a CI-only packaging version-check error; 0.1.12 fixes that check without changing the earlier tag. The workflow now validates both embedded versions against the pushed tag before packaging.
 
 Before any future history rewrite, make a fresh source archive and `git bundle create history.bundle --all`, and coordinate with anyone using existing clones. Local backup directories are ignored and excluded from release archives.
