@@ -4,6 +4,19 @@ Changes are listed newest first. Historical CI-only tags are included so they ar
 
 ## Unreleased
 
+## 0.1.15
+
+### Changed
+- Click the torrent filename to choose another torrent; removed the separate chooser link and download progress bar.
+- Replay and Play next episode share the popup footer equally. Replay is disabled during playback; Next is disabled when no following aired episode is known.
+- Stop is now in the playback panel heading.
+
+### Fixed
+- Notification playback buttons sit below the timestamp and show Starting/Streaming states for the exact episode. Streaming toggles the playback panel.
+- Cover controls reserve sidebar clearance on absolute-positioned anime layouts, including late cover resizing.
+
+## 0.1.14
+
 ### Added
 - Play the exact aired episode directly from AniList notifications.
 - Optional completion comments appended to the anime's AniList Notes.

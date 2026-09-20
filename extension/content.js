@@ -8,7 +8,7 @@
   const reviews = new Map(); let reviewDialog = null, claimingReview = false;
   let panelPosition = null, dismissed = false, drag = null, launchMediaId = null, closeTimer = null, stoppingSession = null;
   let route = location.href, watchedSession = null, nextPlayable = null, listEditorOpen = false, refreshTimer = null;
-  let navigationSession = null;
+  let navigationSession = null, launchingNotification = null;
   try { navigationSession = sessionStorage.getItem('aniqw-navigation-session'); sessionStorage.removeItem('aniqw-navigation-session'); } catch {}
   window.addEventListener('pagehide', () => {
     if (status.sessionId) try { sessionStorage.setItem('aniqw-navigation-session', status.sessionId); } catch {}
@@ -17,10 +17,10 @@
     :host{--bg:rgb(var(--color-foreground,250,250,250));--text:rgb(var(--color-text,92,114,138));--blue:rgb(var(--color-blue,61,180,242));--soft:rgb(var(--color-background,237,241,245));font-family:inherit;font-size:14px;line-height:1.5;color:var(--text);text-align:left;scrollbar-color:var(--text) var(--bg)}
     *{box-sizing:border-box;scrollbar-width:thin}::-webkit-scrollbar{width:9px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#7b8ba055;border-radius:9px}button,input{font:inherit}button{cursor:pointer;border:0;color:inherit;background:transparent;border-radius:4px}button:disabled{cursor:default;opacity:.45}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}button:hover:not(:disabled){filter:brightness(1.08)}
     .split{display:flex;width:100%;height:35px;border-radius:3px;overflow:hidden;background:var(--blue);color:white}.split button{color:white}.play{flex:1}.arrow{width:34px;border-radius:0;background:rgba(255,255,255,.14)}.chevron{font-family:element-icons;font-size:14px;font-style:normal}.chevron.fallback{display:inline-block;font-size:0;width:7px;height:7px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:translateY(-2px) rotate(45deg)}.wrap{position:relative}.menu{animation:menu-in .16s ease-out;transform-origin:top left;position:absolute;top:43px;left:0;width:270px;background:var(--bg);padding:14px;z-index:200;box-shadow:0 6px 24px #0003;border-radius:6px}.menu[hidden]{display:none}label{display:flex;align-items:center;gap:10px}input[type=checkbox]{accent-color:var(--blue);width:16px;height:16px}.episodes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:220px;overflow:auto;margin:12px 0}.episode{background:var(--soft);padding:7px}.episode.current{background:var(--blue);color:white}.episode.seen{background:rgba(75,180,140,.18);color:#59b99a;box-shadow:inset 0 0 0 1px #59b99a40}.episode:disabled{cursor:not-allowed;background:transparent;color:var(--text);opacity:.35;text-decoration:line-through;border:1px dashed #8884}.pager{display:block;width:100%;padding:8px;background:var(--soft);color:var(--blue)}.split.starting{background:#419d89}.split.streaming{background:#8465bb}.split.starting .play:disabled,.split.streaming .play:disabled{opacity:1}.muted{font-size:12px;opacity:.75}.note{font-size:12px;margin:8px 0;overflow-wrap:anywhere}.note:empty{display:none}.link{color:var(--blue);padding:0}.row{display:flex;gap:10px;align-items:center}.row input{min-width:0;flex:1}.primary{background:var(--blue);color:white;padding:9px 16px}.secondary{background:var(--soft);padding:9px 14px}input[type=text],input[type=number]{border:1px solid #8883;background:var(--soft);color:var(--text);border-radius:4px;padding:9px;width:100%}h2{font-size:20px;margin:0;font-weight:600}h3{font-size:14px;margin:12px 0}p{margin:8px 0}
-    .arrow[hidden]{display:none}.notice{padding:12px;border-radius:7px;background:rgba(61,180,242,.12);border-left:3px solid var(--blue);margin:0 0 12px;overflow-wrap:anywhere}.notice strong{display:block;font-size:14px}.notice span:empty{display:none}.split.unavailable{background:var(--soft);color:var(--text);border:1px solid #8883}.split.unavailable .play{color:var(--text);opacity:1}.note-input{display:block;width:100%;min-height:120px;margin:14px 0;padding:12px;background:var(--soft);color:var(--text);border:1px solid #8883;border-radius:5px;font:inherit}.torrent-tools{display:flex;justify-content:flex-end;margin:4px 0 12px}.notification-play{white-space:nowrap}.notice span{display:block;font-size:12px;margin-top:3px}.notice[data-tone=playing]{background:rgba(132,101,187,.16);border-color:#9875d2}.notice[data-tone=error]{background:rgba(228,105,121,.14);border-color:#e46979}.notice[data-tone=closed]{background:rgba(75,180,140,.14);border-color:#59b99a}.panel .error,.panel .sync{padding:11px 12px;border-radius:6px;border-left:3px solid currentColor;background:rgba(228,105,121,.12);font-size:12px}.panel .sync{color:var(--blue);background:rgba(61,180,242,.12)}.panel .sync[data-tone=success]{color:#59b99a;background:rgba(75,180,140,.14)}.panel .sync[data-tone=retry]{color:#c5994e;background:rgba(197,153,78,.12)}.panel .sync:empty{display:none}.stats span{padding:7px 8px;background:var(--soft);border-radius:5px}.panel .row{flex-wrap:wrap}
+    .arrow[hidden]{display:none}.notice{padding:12px;border-radius:7px;background:rgba(61,180,242,.12);border-left:3px solid var(--blue);margin:0 0 12px;overflow-wrap:anywhere}.notice strong{display:block;font-size:14px}.notice span:empty{display:none}.split.unavailable{background:var(--soft);color:var(--text);border:1px solid #8883}.split.unavailable .play{color:var(--text);opacity:1}.note-input{display:block;width:100%;min-height:120px;margin:14px 0;padding:12px;background:var(--soft);color:var(--text);border:1px solid #8883;border-radius:5px;font:inherit}.playback-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.playback-actions button:disabled{background:var(--soft);color:var(--text)}.notification-play.starting{background:#419d89}.notification-play.streaming{background:#8465bb}.notification-play{white-space:nowrap}.notice span{display:block;font-size:12px;margin-top:3px}.notice[data-tone=playing]{background:rgba(132,101,187,.16);border-color:#9875d2}.notice[data-tone=error]{background:rgba(228,105,121,.14);border-color:#e46979}.notice[data-tone=closed]{background:rgba(75,180,140,.14);border-color:#59b99a}.panel .error,.panel .sync{padding:11px 12px;border-radius:6px;border-left:3px solid currentColor;background:rgba(228,105,121,.12);font-size:12px}.panel .sync{color:var(--blue);background:rgba(61,180,242,.12)}.panel .sync[data-tone=success]{color:#59b99a;background:rgba(75,180,140,.14)}.panel .sync[data-tone=retry]{color:#c5994e;background:rgba(197,153,78,.12)}.panel .sync:empty{display:none}.stats span{padding:7px 8px;background:var(--soft);border-radius:5px}.panel .row{flex-wrap:wrap}
     @keyframes menu-in{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.menu{animation:none}}
     dialog{pointer-events:auto;border:0;border-radius:8px;background:var(--bg);color:var(--text);width:min(820px,calc(100vw - 32px));max-height:85vh;padding:26px;box-shadow:0 15px 80px #0006;font:inherit}dialog::backdrop{background:#07101bbb;backdrop-filter:blur(3px)}.heading{display:flex;justify-content:space-between;gap:16px;margin-bottom:14px}.close{font-size:22px;line-height:1;padding:4px 8px}.results{max-height:50vh;overflow:auto;margin-top:16px}.release{display:block;text-align:left;width:100%;padding:14px 10px;border-top:1px solid #8882;border-radius:0}.release:hover{background:var(--soft)}.release-name{display:block;overflow-wrap:anywhere;font-weight:600}.release-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;margin-top:5px;opacity:.8}.badge{color:var(--blue)}.error{color:#e46979;overflow-wrap:anywhere}.error:empty{display:none}
-    .panel{pointer-events:auto;position:fixed;right:max(18px,calc((100vw - 1320px)/2));top:var(--aniqw-top,75px);width:min(410px,calc(100vw - 36px));z-index:990;background:var(--bg);border-radius:10px;box-shadow:0 8px 32px #0004;border:1px solid #8882;border-top:3px solid var(--blue)}.panel[hidden]{display:none}summary{display:flex;align-items:center;gap:8px;padding:12px;cursor:pointer;font-weight:600;overflow-wrap:anywhere;list-style:none}summary::-webkit-details-marker{display:none}.panel-title{flex:1;min-width:0;font-size:13px}.move{cursor:grab;touch-action:none;padding:5px;opacity:.6;font-size:19px}.move:active{cursor:grabbing}.dismiss{font-size:20px;padding:2px 6px;opacity:.7}.restore{pointer-events:auto;position:fixed;right:18px;bottom:18px;background:var(--bg);color:var(--blue);border:1px solid #8883;box-shadow:0 4px 18px #0003;padding:10px 16px}.restore[hidden]{display:none}.body{max-height:calc(100vh - 160px);overflow:auto}.body{padding:0 16px 16px}.filename{padding:8px;background:var(--soft);border-radius:5px;font-size:12px;opacity:.85;overflow-wrap:anywhere;max-height:55px;overflow:auto}progress{width:100%;height:6px;accent-color:var(--blue);margin:12px 0}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin:8px 0 14px}.sync{font-size:12px;overflow-wrap:anywhere}.panel .row{justify-content:space-between}
+    .panel{pointer-events:auto;position:fixed;right:max(18px,calc((100vw - 1320px)/2));top:var(--aniqw-top,75px);width:min(410px,calc(100vw - 36px));z-index:990;background:var(--bg);border-radius:10px;box-shadow:0 8px 32px #0004;border:1px solid #8882;border-top:3px solid var(--blue)}.panel[hidden]{display:none}summary{display:flex;align-items:center;gap:8px;padding:12px;cursor:pointer;font-weight:600;overflow-wrap:anywhere;list-style:none}summary::-webkit-details-marker{display:none}.panel-title{flex:1;min-width:0;font-size:13px}.move{cursor:grab;touch-action:none;padding:5px;opacity:.6;font-size:19px}.move:active{cursor:grabbing}.dismiss{font-size:20px;padding:2px 6px;opacity:.7}.restore{pointer-events:auto;position:fixed;right:18px;bottom:18px;background:var(--bg);color:var(--blue);border:1px solid #8883;box-shadow:0 4px 18px #0003;padding:10px 16px}.restore[hidden]{display:none}.body{max-height:calc(100vh - 160px);overflow:auto}.body{padding:0 16px 16px}.filename{display:block;width:100%;text-align:left;padding:8px;background:var(--soft);border-radius:5px;font-size:12px;opacity:.85;overflow-wrap:anywhere;max-height:55px;overflow:auto}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin:8px 0 14px}.sync{font-size:12px;overflow-wrap:anywhere}.panel .row{justify-content:space-between}
   `;
   const el = (tag, attrs = {}, text) => {
     const e = document.createElement(tag);
@@ -62,8 +62,7 @@
   const countdown = el('p', {class:'muted'});
   function cancelCountdown(){clearInterval(closeTimer);countdown.textContent='';}
   function startCountdown(duration=5){cancelCountdown();let seconds=duration; countdown.textContent=`Minimizing in ${seconds}s`; closeTimer=setInterval(()=>{seconds--;countdown.textContent=`Minimizing in ${seconds}s`;if(seconds<=0){cancelCountdown();setDismissed(true);}},1000);}
-  const filename = el('div', { class: 'filename' });
-  const bar = el('progress', { max: '100', value: '0', 'aria-label': 'Torrent download progress' });
+  const filename = el('button', { class: 'filename', title: 'Choose another torrent', onclick: () => activeRequest && chooser(activeRequest) });
   const stats = el('div', { class: 'stats' });
   const warning = el('p', { class: 'error', role: 'status' });
   const sync = el('p', { class: 'sync', role: 'status' });
@@ -73,28 +72,44 @@
     try { await send('stop', { sessionId: status.sessionId }); }
     catch (e) { stoppingSession = null; warning.textContent = e.message; stop.disabled = false; stop.textContent = 'Stop'; if (status.sessionId === session && status.phase === 'stopping') { status = { ...status, phase: before }; updatePlayButton(); } }
   } }, 'Stop');
-  const replay = el('button', { class: 'primary', hidden: '', onclick: async () => {
-    if (!activeRequest || launchMediaId !== null) return;
+  const replay = el('button', { class: 'primary', disabled: '', onclick: async () => {
+    if (!activeRequest || status.phase !== 'idle' || launchMediaId !== null) return;
     launchMediaId = activeRequest.mediaId; replay.disabled = true; cancelCountdown(); updatePlayButton();
     try { setDismissed(false); await send('play', activeRequest); } catch(e) { warning.textContent = e.message; }
-    finally { launchMediaId = null; replay.disabled = false; updatePlayButton(); }
+    finally { launchMediaId = null; updatePlaybackActions(); updatePlayButton(); }
   } }, 'Replay');
-  const nextEpisodeButton = el('button', { class: 'primary', hidden: '', onclick: async () => {
+  const nextEpisodeButton = el('button', { class: 'primary', disabled: '', onclick: async () => {
     if (!nextPlayable || launchMediaId !== null) return;
     const request = { ...nextPlayable };
     launchMediaId = request.mediaId; nextEpisodeButton.disabled = true; cancelCountdown(); updatePlayButton();
     try {
       const fresh = await send('media', { mediaId: request.mediaId, fresh: true });
+      if (!Number.isFinite(fresh.available) || request.episode > fresh.available) { nextPlayable=null; return; }
       activeRequest = request;
       if (fresh.autoSelect) { setDismissed(false); await send('play', request); }
       else chooser(request);
     } catch (e) { warning.textContent = e.message; }
-    finally { launchMediaId = null; nextEpisodeButton.disabled = false; updatePlayButton(); }
+    finally { launchMediaId = null; updatePlaybackActions(); updatePlayButton(); }
   } }, 'Play next episode');
-  const choose = el('button', { class: 'link', onclick: () => activeRequest && chooser(activeRequest) }, 'Choose another torrent');
-  const controls = el('div', { class: 'row' }); controls.append(nextEpisodeButton, replay, stop);
-  const torrentTools = el('div',{class:'torrent-tools'}); torrentTools.append(choose);
-  body.append(phaseBox, filename, bar, stats, torrentTools, warning, sync, countdown, controls); panel.append(summary, body); overlay.append(panel);
+  const controls = el('div', { class: 'playback-actions' }); controls.append(replay, nextEpisodeButton);
+  stop.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+  summary.insertBefore(stop, dismiss);
+  body.append(phaseBox, filename, stats, warning, sync, countdown, controls); panel.append(summary, body); overlay.append(panel);
+  function updatePlaybackActions() {
+    replay.disabled = status.phase !== 'idle' || !activeRequest || launchMediaId !== null;
+    nextEpisodeButton.disabled = !nextPlayable || launchMediaId !== null || status.phase === 'stopping';
+    nextEpisodeButton.title = nextPlayable ? `Play episode ${nextPlayable.episode}` : 'No next aired episode available';
+    filename.disabled = !activeRequest || !status.filename || launchMediaId !== null;
+  }
+  async function findNext(s) {
+    try {
+      const fresh = await send('media', {mediaId:s.media.id});
+      if (status.sessionId !== s.sessionId) return;
+      nextPlayable = Number.isFinite(fresh.available) && s.episode < fresh.available
+        ? {mediaId:s.media.id, episode:s.episode + 1} : null;
+      updatePlaybackActions();
+    } catch { /* Leave Next disabled until availability can be verified. */ }
+  }
 
   function connect() {
     port = chrome.runtime.connect({ name: 'ani-qw' });
@@ -115,7 +130,7 @@
           watchedNotice.textContent = `Episode ${message.data.episode} marked watched`;
           sync.textContent = '';
           nextPlayable = message.data.nextEpisode ? { mediaId: message.data.mediaId, episode: message.data.nextEpisode } : null;
-          nextEpisodeButton.hidden = status.phase !== 'idle' || !nextPlayable;
+          updatePlaybackActions();
           if (status.phase === 'idle' && !dismissed) startCountdown(nextPlayable ? 10 : 5);
         }
         if (message.data.mediaId === mediaId) loadMedia(true);
@@ -172,9 +187,10 @@
     if (s.sessionId && s.sessionId !== status.sessionId) {
       dismissed = navigationSession === s.sessionId; navigationSession = null;
       restore.hidden = !dismissed; sync.textContent = '';
-      watchedSession = null; nextPlayable = null; nextEpisodeButton.hidden = true;
+      watchedSession = null; nextPlayable = null;
+      if (s.media?.id) findNext(s);
     }
-    status = s; updatePlayButton();
+    status = s; updatePlayButton(); notificationButtons();
     if (s.phase === 'idle' && !s.sessionId) return;
     panel.hidden = dismissed;
     panelTitle.textContent = `${s.media?.title || 'Ani-QW'}${s.episode ? ` · Episode ${s.episode}` : ''}`;
@@ -189,7 +205,7 @@
     phaseTitle.textContent = title;
     phaseBox.dataset.tone = ['playing','paused'].includes(s.phase) ? 'playing' : s.phase === 'idle' ? (s.endReason === 'error' ? 'error' : 'closed') : 'starting';
     if (previous.phase !== s.phase) panel.open = true;
-    filename.textContent = s.filename || 'Finding your episode…'; bar.value = s.percent || 0;
+    filename.textContent = s.filename || 'Finding your episode…';
     stats.replaceChildren(...[
       `${(s.percent || 0).toFixed(1)}% · ${bytes(s.downloaded || 0)} / ${bytes(s.size || 0)}`,
       `↓ ${rate(s.downloadSpeed || 0)}${s.seeding === false ? "" : `  ↑ ${rate(s.uploadSpeed || 0)}`}`,
@@ -198,9 +214,9 @@
     ].map(text => el('span', {}, text)));
     warning.textContent = s.warning || '';
     stop.disabled = s.phase === 'idle' || s.phase === 'stopping'; stop.textContent = s.phase === 'stopping' ? 'Stopping…' : 'Stop';
-    nextEpisodeButton.hidden = s.phase !== 'idle' || !nextPlayable;
-    stop.hidden = s.phase === 'idle'; replay.hidden = s.phase !== 'idle' || !s.media?.id;
+    stop.hidden = s.phase === 'idle';
     if (s.media?.id) activeRequest = { mediaId: s.media.id, episode: s.episode, rewatch:!!s.rewatch };
+    updatePlaybackActions();
     if (s.phase === 'idle') maybeReview();
     if (s.phase !== 'idle') cancelCountdown();
     else if (previous.phase !== 'idle' && !s.warning && !dismissed) {
@@ -365,7 +381,7 @@
 
   async function playNotification(id, episode, button) {
     if (launchMediaId !== null) return;
-    launchMediaId=id;button.disabled=true;button.textContent='Starting…';
+    launchMediaId=id; launchingNotification=`${id}:${episode}`; notificationButtons();
     try {
       const fresh=await send('media',{mediaId:id,fresh:true});
       const request={mediaId:id,episode};
@@ -373,7 +389,16 @@
       if(fresh.autoSelect){setDismissed(false);panel.open=true;await send('play',request);}
       else chooser(request);
     } catch(e) {showError(e);}
-    finally {launchMediaId=null;button.disabled=false;button.textContent=`Play episode ${episode}`;}
+    finally {launchMediaId=null;launchingNotification=null;notificationButtons();}
+  }
+  function updateNotification(button,id,episode) {
+    const active=status.media?.id===id && status.episode===episode && status.phase!=='idle';
+    const streaming=active && ['playing','paused'].includes(status.phase);
+    const starting=launchingNotification===`${id}:${episode}` || (active && !streaming);
+    button.textContent=streaming?'Streaming':starting?(status.phase==='stopping'?'Stopping…':'Starting…'):`Play episode ${episode}`;
+    button.disabled=starting;
+    button.classList.toggle('starting',starting);button.classList.toggle('streaming',streaming);
+    button.title=streaming?'Show or hide playback details':'';
   }
   function notificationButtons() {
     if (!/^\/notifications\/?$/.test(location.pathname)) return;
@@ -385,20 +410,38 @@
       const id=Number(link?.getAttribute('href')?.match(/^\/anime\/(\d+)/)?.[1]);
       let host=row.querySelector('.aniqw-notification');
       const key=id && match ? id+':'+match[1] : '';
-      if (host?.dataset.key===key) continue;
+      if (host?.dataset.key===key) { updateNotification(host.shadowRoot.querySelector('button'),id,Number(match[1])); continue; }
       host?.remove();
       if (!key) {
         if (row.dataset.aniqwColumns !== undefined) { row.style.gridTemplateColumns=row.dataset.aniqwColumns; delete row.dataset.aniqwColumns; }
         continue;
       }
-      host=el('div',{class:'aniqw-notification',style:'grid-column:3;grid-row:1;align-self:center;margin:12px;'});
+      host=el('div',{class:'aniqw-notification',style:'display:flex;justify-content:flex-end;margin-top:12px;position:relative;'});
       host.dataset.key=key;
       const r=root(host);
       const button=el('button',{class:'primary notification-play'},`Play episode ${match[1]}`);
-      button.onclick=e=>{e.preventDefault();e.stopPropagation();playNotification(id,Number(match[1]),button);};
-      r.append(button);if(row.dataset.aniqwColumns===undefined)row.dataset.aniqwColumns=row.style.gridTemplateColumns;row.style.gridTemplateColumns='60px minmax(0,1fr) auto';row.append(host);
+      button.onclick=e=>{e.preventDefault();e.stopPropagation();if (status.media?.id===id && status.episode===Number(match[1]) && ['playing','paused'].includes(status.phase)) {cancelCountdown();setDismissed(!dismissed);panel.open=true;} else playNotification(id,Number(match[1]),button);};
+      r.append(button);row.querySelector('.details').append(host);updateNotification(button,id,Number(match[1]));
     }
   }
+  let spacedSidebar = null, sidebarPadding = '', appliedPadding = null;
+  function clearCoverSpacing() {
+    if (spacedSidebar && spacedSidebar.style.paddingTop === appliedPadding) spacedSidebar.style.paddingTop=sidebarPadding;
+    spacedSidebar=null;appliedPadding=null;
+  }
+  function spaceCoverControls() {
+    const sidebar=document.querySelector('.sidebar'), inner=controlHost?.parentElement;
+    if (!sidebar || !inner || getComputedStyle(inner).position!=='absolute') {clearCoverSpacing();return;}
+    if(spacedSidebar!==sidebar){clearCoverSpacing();spacedSidebar=sidebar;sidebarPadding=sidebar.style.paddingTop;}
+    const current=parseFloat(getComputedStyle(sidebar).paddingTop)||0;
+    const base=parseFloat(sidebarPadding)||0;
+    const cover=inner.getBoundingClientRect(), side=sidebar.getBoundingClientRect();
+    const sameColumn=cover.left<side.right && cover.right>side.left;
+    const needed=sameColumn?Math.max(base,Math.ceil(cover.bottom+20-side.top)):base;
+    if(Math.abs(current-needed)>.5){appliedPadding=`${needed}px`;sidebar.style.paddingTop=appliedPadding;}
+  }
+  const coverObserver=new ResizeObserver(spaceCoverControls);
+  window.addEventListener('resize',spaceCoverControls);
   function reconcile() {
     notificationButtons();
     if (route !== location.href) {route = location.href; cancelCountdown(); if(status.sessionId)setDismissed(true);}
@@ -413,7 +456,7 @@
     const id = Number(location.pathname.match(/^\/anime\/(\d+)(?:\/|$)/)?.[1]) || null;
     const nextAccount = accountName();
     if (!invalidated && (nextAccount !== account || !port)) { account = nextAccount; send('hello', { account }).then(data => { panelPosition = data.panelPosition; positionPanel(); send('reviews').then(items=>{for(const item of items)reviews.set(item.id,item);maybeReview();}).catch(()=>{}); }).catch(() => {}); if (control) loadMedia(); }
-    if (id !== mediaId) { mediaId = id; model = null; generation++; controlHost?.remove(); controlHost = control = null; modal?.close(); }
+    if (id !== mediaId) { clearCoverSpacing();coverObserver.disconnect();mediaId = id; model = null; generation++; controlHost?.remove(); controlHost = control = null; modal?.close(); }
     if (id && !controlHost?.isConnected) {
       // Observed on AniList: the cover's action row contains both list and favourite controls.
       const actions = document.querySelector('.cover-wrap-inner > .actions');
@@ -421,9 +464,12 @@
         controlHost = el('div', { id: 'ani-qw-controls', style: 'display:block;padding-bottom:10px' }); controlHost.style.marginTop = `${10 - (parseFloat(getComputedStyle(actions).marginBottom) || 0)}px`; actions.after(controlHost); control = root(controlHost);
         const wrap = el('div', { class: 'wrap' }); const split = el('div', { class: 'split' });
         split.append(el('button', { class: 'play', disabled: '' }, 'Loading playback…')); wrap.append(split, el('p', { class: 'note', role: 'status' })); control.append(wrap);
+        coverObserver.observe(actions.parentElement);
+        const sidebar=document.querySelector('.sidebar');if(sidebar)coverObserver.observe(sidebar);
         loadMedia();
       }
     }
+    spaceCoverControls();
     const nav = document.querySelector('#nav');
     overlayHost.style.setProperty('--aniqw-top', `${Math.max(12, (nav?.getBoundingClientRect().bottom || 63) + 12)}px`);
   }

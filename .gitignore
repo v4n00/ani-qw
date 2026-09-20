@@ -12,3 +12,5 @@ dist/
 PROGRESS.md
 
 .backups/
+
+/release-local.sh
