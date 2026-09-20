@@ -1,14 +1,15 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ani-QW · Settings</title><link rel="stylesheet" href="options.css"></head>
-<body><main><p class="eyebrow">ANILIST → MPV</p><h1><img src="icon.png" alt="" width="40" height="40"> Ani-QW</h1><p class="intro">AniList Quick Watch</p>
-<section><h2>Connect AniList</h2><p>Connect the same account you use on AniList. Episodes are marked watched at your chosen playback threshold, including seeking.</p>
+<body><main><h1><img src="icon.png" alt="" width="40" height="40"> Ani-QW</h1><p class="intro">AniList Quick Watch</p>
+<section><h2>Connect AniList</h2>
 <div id="connect-fields"><ol><li><a id="get-token" href="https://anilist.co/api/v2/oauth/authorize?client_id=51034&amp;response_type=token" target="_blank" rel="noopener noreferrer">Get AniList token</a> and authorize Ani-QW.</li><li>Copy the token shown by AniList and paste it below.</li></ol>
 <form id="token-connect"><label for="token">AniList access token</label><input id="token" type="password" required maxlength="16384" autocomplete="off" spellcheck="false" autocapitalize="off"><button type="submit">Connect with token</button></form>
 </div><p id="account"></p><button id="disconnect" class="secondary" hidden>Disconnect</button><p id="message" role="status"></p></section>
 <section><h2>Preferences</h2><form id="cache-settings">
 <div class="preference"><div><label for="watched-percent">Watch progress</label><p class="hint">Mark an episode watched at this percentage.</p></div><div class="inline"><input id="watched-percent" type="number" min="1" max="99" value="80" required><span>%</span></div></div>
-<div class="preference"><div><label for="cache-size">Download cache</label><p class="hint">Remove older inactive downloads first.</p></div><div class="inline"><input id="cache-size" type="number" min="1" max="1024" value="20" required><span>GiB</span></div></div>
+<div class="preference"><div><label for="keep-video">Keep downloaded video</label><p class="hint">Turn off to remove downloads after playback.</p></div><input id="keep-video" type="checkbox" checked></div>
+<div class="preference" id="cache-size-row"><div><label for="cache-size">Download cache</label><p class="hint">Remove older inactive downloads first.</p></div><div class="inline"><input id="cache-size" type="number" min="1" max="1024" value="20" required><span>GiB</span></div></div>
 <div class="preference"><div><label for="seeding">Share while playing</label><p class="hint">Upload torrent pieces during playback. Stops when the player closes.</p></div><input id="seeding" type="checkbox" checked></div>
-<button type="submit">Save preferences</button><p class="hint">Playback changes apply to the next episode. Active downloads stay protected.</p></form><p id="cache-message" role="status"></p></section>
-<section><h2>App connection &amp; updates</h2><button id="check-helper" class="secondary">Check connection</button><p id="helper-message" role="status"></p><button id="check-updates" class="secondary">Check for updates</button><p id="update-message" role="status"></p><a id="release-link" hidden target="_blank" rel="noopener noreferrer">Open release</a></section>
+<button type="submit">Save preferences</button></form><p id="cache-message" role="status"></p></section>
+<section><h2>App connection &amp; updates</h2><button id="check-helper" class="secondary">Check connection</button><p id="helper-message" role="status"></p><button id="check-updates" class="secondary">Check for updates</button><p id="update-message" role="status"></p><div id="update-command" hidden><p class="hint">Stop playback and close the browser, then run:</p><pre><code>curl -fsSL https://raw.githubusercontent.com/v4n00/ani-qw/master/install.sh | bash</code></pre><p class="hint">Reopen the browser and reload Ani-QW afterward.</p></div><a id="release-link" hidden target="_blank" rel="noopener noreferrer">Open release</a></section>
 </main><script src="options.js" type="module"></script></body></html>

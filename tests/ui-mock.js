@@ -2,7 +2,8 @@
 if (new URLSearchParams(location.search).get('capture') === '2') document.documentElement.style.zoom = '2';
 history.replaceState({}, '', '/anime/1/Example-Show/');
 const listeners = [];
-let fixtureAuto = true;
+let fixtureAuto = true, fixtureInvalidated = false;
+let savedComment=null;
 let freshRequests = 0;
 let fixtureProgress = null;
 let fixtureState = { phase: 'idle' };
@@ -10,8 +11,12 @@ let fixturePanelPosition = null;
 const media = id => ({ id, title: { romaji: id === 1 ? 'Example Show' : 'Another Show' }, format: 'TV', status: 'RELEASING', episodes: id === 1 ? 12 : 60, mediaListEntry: { progress: id === 1 ? 4 : 28 } });
 window.chrome = { runtime: { connect() { return {
   onMessage: { addListener(fn) { listeners.push(fn); } }, onDisconnect: { addListener() {} },
-  postMessage(message) { setTimeout(() => {
+  postMessage(message) { if(fixtureInvalidated)throw new Error('Extension context invalidated.'); setTimeout(() => {
     let data = {};
+    if(message.type==='reviews') data=[];
+    if(message.type==='claimReview') data={claimed:true};
+    if(message.type==='saveReview') {savedComment=message.comment;emit('reviewDismissed',{id:message.reviewId});}
+    if(message.type==='dismissReview') emit('reviewDismissed',{id:message.reviewId});
     if (message.type === 'hello') data.panelPosition = fixturePanelPosition;
     if (message.type === 'panelPosition') fixturePanelPosition = message.position;
     if (message.type === 'media' && message.fresh) freshRequests++;
@@ -106,6 +111,33 @@ document.getElementById('checks-button').onclick = async () => {
     history.pushState({},'', '/anime/3/Unaired/'); document.querySelector('h1').textContent='Unaired'; await pause();await pause();
     const unairedRoot=document.querySelector('#ani-qw-controls').shadowRoot;
     assert(unairedRoot.querySelector('.arrow').hidden && unairedRoot.querySelector('.arrow').disabled, 'unreleased anime hides and disables dropdown');
+    assert(overlay.querySelector('.filename').nextElementSibling.tagName==='PROGRESS','torrent filename sits immediately above download bar');
+    assert(overlay.querySelector('progress').nextElementSibling.classList.contains('stats'),'download bar sits immediately above widgets');
+    assert(!overlay.querySelector('.body > .row').textContent.includes('Choose another torrent'),'torrent chooser moved out of playback buttons');
+    fixtureState={...fixtureState,phase:'idle',endReason:'closed'};emit('state',fixtureState);
+    emit('review',{id:'review-test',mediaId:2,userId:1,title:'Another Show',sessionId:fixtureState.sessionId});
+    await pause();
+    const noteDialog=overlay.querySelector('dialog[aria-label="Add completion note"]');
+    assert(noteDialog?.open,'completed show offers optional Notes prompt');
+    noteDialog.querySelector('textarea').value='Memorable finale';
+    [...noteDialog.querySelectorAll('button')].find(b=>b.textContent==='Save to AniList Notes').click();await pause();
+    assert(savedComment==='Memorable finale','only explicit Save submits completion comment');
+    history.pushState({},'', '/notifications');
+    const rows=document.createElement('div');
+    rows.innerHTML='<div class="notification hasMedia"><div class="details"><div>Episode 17 of <a href="/anime/189046/ReZERO/">Re:ZERO</a> aired.</div></div></div><div class="notification hasMedia"><div class="details"><div><a href="/anime/2/Another/">Another</a> was recently added to the site.</div></div></div>';
+    document.body.append(rows);await pause();await pause();
+    assert(rows.querySelectorAll('.aniqw-notification').length===1,'only aired-episode notifications receive Play buttons');
+    const notificationButton=rows.querySelector('.aniqw-notification').shadowRoot.querySelector('button');
+    assert(notificationButton.textContent==='Play episode 17','notification identifies its exact episode');
+    notificationButton.click();await pause();await pause();
+    assert(fixtureState.media.id===189046 && fixtureState.episode===17,'notification plays its anime and episode without navigation');
+    fixtureInvalidated=true;
+    history.pushState({},'', '/anime/4/Reload-Test/');document.querySelector('h1').textContent='Reload Test';await pause();await pause();
+    const refreshRoot=document.querySelector('#ani-qw-controls').shadowRoot;
+    assert(refreshRoot.querySelector('.play').textContent==='Refresh AniList','invalidated extension offers page refresh action');
+    assert(!refreshRoot.querySelector('.note').textContent.includes('context invalidated'),'internal invalidated error is replaced by actionable text');
+
+
 
   } catch (e) { output.textContent += `FAIL ${e.message}\n`; }
 };

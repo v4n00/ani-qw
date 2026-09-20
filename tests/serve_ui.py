@@ -6,6 +6,10 @@ import sys
 
 os.chdir(Path(__file__).resolve().parents[1])
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control","no-store")
+        super().end_headers()
+
     def do_GET(self):
         if self.path == '/tests/options-preview.html':
             html = Path('extension/options.html').read_text().replace('href="options.css"', 'href="/extension/options.css"').replace('src="icon.png"','src="/extension/icon.png"').replace('<script src="options.js"', '<script src="/tests/options-mock.js"></script><script src="/extension/options.js"')

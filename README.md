@@ -10,12 +10,15 @@ No desktop window, web dashboard, login-time service, or separate torrent client
 > [!NOTE]
 > This project is 100% coded by AI.
 
+See [CHANGELOG.md](CHANGELOG.md) for additions and fixes by version.
+
 ## Made for your watchlist
 
 - **Stay on AniList.** Native-looking controls, watched-episode colors and a compact episode picker.
 - **Stream in mpv.** Automatic release selection, or choose a torrent and batch file yourself.
 - **Keep track.** A movable playback panel with clear states, transfer statistics, Stop and Replay.
-- **Sync progress.** Watched episodes are queued reliably, even when the browser closes.
+- **Sync progress.** Watched episodes are queued reliably, even when the browser closes. Finished shows offer an optional comment saved to AniList Notes.
+- **Play from notifications.** Episode-airing notifications include a button for that exact episode.
 
 <p align="center"><img src="docs/images/playback.jpg" width="520" alt="Ani-QW playback panel showing its separate streaming status card and torrent statistics"></p>
 <p align="center"><em>Actual extension UI with synthetic demonstration data.</em></p>
@@ -75,7 +78,7 @@ Authorize the same account that is logged into the AniList website. The access t
 
 ## Playback
 
-- **Play Episode N** fetches your current AniList progress before choosing the next unwatched aired episode. If caught up, it replays the last aired episode; after finishing a completed show, it starts at episode 1.
+- **Play Episode N** fetches your current AniList progress before choosing the next unwatched aired episode. If caught up, it says **Replay Episode N** and replays the last aired episode; after finishing a completed show, it starts at episode 1. Movies show **Play Movie**.
 - The arrow opens an episode picker and the persistent **Automatically select torrent** toggle. Known unaired episodes are disabled; the arrow is hidden for an unaired show. Saving AniList’s progress editor refreshes the extension’s episode target. When availability is unknown, enter an episode number explicitly.
 - Automatic selection prefers seeded, English-translated 1080p releases with a credible title, season, and episode match. If no reliable match exists, the manual chooser opens.
 - The manual chooser searches Nyaa and shows resolution, size, seeds, and leechers. Choose a torrent, then its video file. A likely episode is highlighted; unusual filenames or absolute numbering may need your judgment.
@@ -84,7 +87,7 @@ Authorize the same account that is logged into the AniList website. The access t
 - Unfinished episodes resume from their saved position, scoped to your account and episode. Positions are saved every five seconds and on normal exit; watched episodes clear their resume point. There is no next-episode autoplay.
 - **Rewatch** starts a new viewing pass for a completed show. AniList changes to Rewatching only after the watched threshold is reached. Choosing an older episode manually is a one-off replay and never lowers existing progress.
 
-The helper retains up to **20 GiB of allocated torrent data by default**, configurable from 1–1024 GiB in extension settings, evicting the least-recently-used inactive torrents. An active session may exceed the limit temporarily. **Share while playing** enables torrent uploads by default. Turn it off in Preferences to disable video uploads and hide upload speed; tracker and peer-protocol traffic can still appear in system monitors. Changes apply to the next playback. Sharing and downloading stop when mpv exits. Cached pieces are verified before reuse; sparse file length is not treated as proof of downloaded data.
+The helper retains up to **20 GiB of allocated torrent data by default**, configurable from 1–1024 GiB in extension settings, evicting the least-recently-used inactive torrents. An active session may exceed the limit temporarily. Turn off **Keep downloaded video** to delete cached video when playback ends; idle downloads are cleared when saving that preference. Resume positions and pending watch updates are kept. Temporary disk space is still required while streaming. **Share while playing** enables torrent uploads by default. Turn it off in Preferences to disable video uploads and hide upload speed; tracker and peer-protocol traffic can still appear in system monitors. Changes apply to the next playback. Sharing and downloading stop when mpv exits. Cached pieces are verified before reuse; sparse file length is not treated as proof of downloaded data.
 
 ## Diagnostics and updates
 
@@ -117,6 +120,8 @@ bash install.sh --uninstall --browser chromium
 
 Remove the extension in the browser as well. The command retains downloaded cache and pending completion data. It leaves the binary installed if another supported browser still has a host registration.
 
+Completion comments are optional. Choose **Save to AniList Notes** to append your comment while preserving existing notes, or **Skip**. Pending prompts wait for the connected account; nothing is posted automatically.
+
 ## Development and verification
 
 ```sh
@@ -131,7 +136,7 @@ The Makefile uses the torrent library's `nosqlite` build tag, selecting its Bolt
 
 The integration test needs ffmpeg, mpv, and permission to open loopback sockets. It generates its own video and seeds only over loopback, with trackers, DHT, PEX, and UPnP disabled. The UI fixture uses fake AniList/helper data and provides a **Run UI checks** button; it does not install the extension or touch an account.
 
-Release automation tests the helper and extension, builds Linux x86_64 and ARM64 bundles, and publishes assets when a matching version tag is pushed. See [the release guide](docs/releasing.md). UI fixtures use synthetic data; they do not prove live AniList authorization or network availability.
+Release automation tests the helper and extension, builds Linux x86_64 and ARM64 bundles, and publishes assets when a matching version tag is pushed. See [the step-by-step release guide](docs/releasing.md). UI fixtures use synthetic data; they do not prove live AniList authorization or network availability.
 
 ## Architecture and credits
 

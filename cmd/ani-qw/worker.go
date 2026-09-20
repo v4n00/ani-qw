@@ -88,6 +88,16 @@ func runWorker() error {
 	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		return nil
 	}
+	// Recover temporary video left by an interrupted no-retention session.
+	prefs, err := readSettings(p.State)
+	if err != nil {
+		return err
+	}
+	if !prefs.KeepVideo {
+		if err := evictCache(p.Cache, 0); err != nil {
+			return err
+		}
+	}
 	socket := filepath.Join(p.Runtime, "worker.sock")
 	os.Remove(socket)
 	l, err := net.Listen("unix", socket)
@@ -343,8 +353,9 @@ func (w *worker) start(p *peer, r Request) {
 		if settingsErr != nil {
 			log.Print(settingsErr)
 			settings.CacheGiB = 20
+			settings.KeepVideo = true
 		}
-		if err := evictCache(w.p.Cache, int64(settings.CacheGiB)<<30); err != nil {
+		if err := evictCache(w.p.Cache, settings.cacheLimit()); err != nil {
 			log.Print(err)
 		}
 	}()

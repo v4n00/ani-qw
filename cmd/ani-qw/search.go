@@ -34,7 +34,7 @@ type Release struct {
 var httpClient = &http.Client{Timeout: 20 * time.Second}
 var hashPattern = regexp.MustCompile(`^[a-fA-F0-9]{40}$`)
 var partPattern = regexp.MustCompile(`(?i)\b(?:part|cour)\s*(\d+)\b`)
-var pathSeasonPattern = regexp.MustCompile(`(?i)(?:\bseason[ ._-]*|\bs)(\d{1,2})(?:\b|e\d)`)
+var pathSeasonPattern = regexp.MustCompile(`(?i)(?:\b(\d{1,2})(?:st|nd|rd|th)[ ._-]+season\b|\bseason[ ._-]*(\d{1,2})\b|\bs(\d{1,2})(?:\b|e\d))`)
 var samplePattern = regexp.MustCompile(`(?i)(?:^|[\s._\-\[\]])(?:sample|ncop|nced|creditless)(?:$|[\s._\-\[\]])`)
 
 func parseRSS(r io.Reader) ([]Release, error) {
@@ -321,8 +321,14 @@ func matchingFile(names []string, m Media, ep int) int {
 		}
 		wrongSeason := false
 		for _, match := range pathSeasonPattern.FindAllStringSubmatch(name, -1) {
-			s := strings.TrimLeft(match[1], "0")
-			if s != expectedSeason {
+			sn := ""
+			for _, group := range match[1:] {
+				if group != "" {
+					sn = strings.TrimLeft(group, "0")
+					break
+				}
+			}
+			if sn != expectedSeason {
 				wrongSeason = true
 			}
 		}

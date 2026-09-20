@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestCacheSettingsPersistence(t *testing.T) {
 	w := &worker{p: paths{State: t.TempDir(), Cache: t.TempDir()}}
@@ -53,5 +58,45 @@ func TestSeedingPreferencesAtomic(t *testing.T) {
 	s, _ = w.settings(nil)
 	if s.Seeding || s.CacheGiB != 30 || s.WatchedPercent != 90 {
 		t.Fatalf("partial write: %+v", s)
+	}
+}
+
+func TestNoRetentionProtectsActiveData(t *testing.T) {
+	w := &worker{p: paths{State: t.TempDir(), Cache: t.TempDir()}}
+	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	dir := filepath.Join(w.p.Cache, hash)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "video.mkv"), []byte("video"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stateFile := filepath.Join(w.p.State, "resume.json")
+	os.WriteFile(stateFile, []byte("{}"), 0600)
+	keep := false
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_ = ctx
+	w.cancel = cancel
+	s, err := w.savePreferences(Request{KeepVideo: &keep})
+	if err != nil || s.KeepVideo || s.cacheLimit() != 0 {
+		t.Fatalf("%+v %v", s, err)
+	}
+	if _, err = os.Stat(dir); err != nil {
+		t.Fatal("active cache removed")
+	}
+	w.cancel = nil
+	if _, err = w.savePreferences(Request{KeepVideo: &keep}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatal("inactive video retained")
+	}
+	if _, err = os.Stat(stateFile); err != nil {
+		t.Fatal("resume state removed")
+	}
+	s, _ = readSettings(w.p.State)
+	if s.KeepVideo {
+		t.Fatal("retention preference not persisted")
 	}
 }

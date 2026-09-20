@@ -475,7 +475,7 @@ func evictCache(root string, limit int64) error {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].used.Before(entries[j].used) })
 	for _, e := range entries {
-		if total <= limit {
+		if limit > 0 && total <= limit {
 			break
 		}
 		if err := os.RemoveAll(e.path); err != nil {

@@ -42,7 +42,7 @@ The worker uses an exclusive lock in its private runtime directory. Multiple nat
 
 ## Settings, updates and resume
 
-`settings` reads preferences; optional `cacheGiB` (1–1024) and `watchedPercent` (1–99) persist preferences. Optional `seeding` is boolean. Defaults are 20 GiB, 80%, and sharing enabled. All supplied preferences are validated before one atomic write. Playback snapshots the watched threshold and sharing setting at launch. State includes `seeding`; disabled sharing hides upload statistics. Torrent inspection never uploads video data. Cache eviction never runs concurrently with active playback.
+`settings` reads preferences; optional `cacheGiB` (1–1024) and `watchedPercent` (1–99) persist preferences. Optional `seeding` and `keepVideo` are boolean. Defaults are 20 GiB, 80%, sharing enabled, and retention enabled. All supplied preferences are validated before one atomic write. Playback snapshots the watched threshold and sharing setting at launch. State includes `seeding`; disabled sharing hides upload statistics. Torrent inspection never uploads video data. Cache eviction never runs concurrently with active playback. With `keepVideo:false`, cleanup removes all inactive hash directories after playback, on idle preference save, and on worker startup following an interrupted session. Resume/completion data are stored separately and retained.
 
 `play` accepts `rewatch` and `repeatBase`; completion records preserve these values so full-show Rewatch changes AniList only after threshold completion, including after reconnect. Ordinary older-episode playback remains monotonic. State includes `rewatch` to preserve replay intent.
 

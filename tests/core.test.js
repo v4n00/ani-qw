@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { availability, nextEpisode, progressUpdate } from '../extension/core.js';
+import { availability, nextEpisode, progressUpdate, playbackLabel } from '../extension/core.js';
 const media = overrides => ({ id: 1, status: 'RELEASING', episodes: 12, format: 'TV', nextAiringEpisode: { episode: 8 }, mediaListEntry: { progress: 0, status: 'CURRENT' }, ...overrides });
 test('first, next, and caught-up episodes', () => {
   assert.equal(nextEpisode(media()), 1);
@@ -42,4 +42,12 @@ test('deferred full rewatch and one-off replay have distinct progress rules', ()
  assert.equal(progressUpdate(completed,10),null);
  assert.deepEqual(progressUpdate(completed,1,{rewatch:true,repeatBase:2}),{mediaId:1,progress:1,status:'REPEATING'});
  assert.equal(progressUpdate({...completed,mediaListEntry:{...completed.mediaListEntry,repeat:3}},1,{rewatch:true,repeatBase:2}),null);
+});
+
+test('play labels distinguish replay, movie, rewatch and unreleased',()=>{
+ assert.equal(playbackLabel(media()),'Play Episode 1');
+ assert.equal(playbackLabel(media({mediaListEntry:{progress:7}})),'Replay Episode 7');
+ assert.equal(playbackLabel(media({format:'MOVIE',status:'FINISHED',episodes:1})),'Play Movie');
+ assert.equal(playbackLabel(media({status:'FINISHED',mediaListEntry:{status:'COMPLETED',progress:12}})),'Rewatch');
+ assert.equal(playbackLabel(media({status:'NOT_YET_RELEASED'})),'Not yet aired');
 });

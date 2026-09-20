@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -55,6 +56,22 @@ func TestShortTitlesRemainSearchable(t *testing.T) {
 	for _, q := range queries {
 		if strings.HasPrefix(q, "re (") {
 			t.Fatalf("broad batch query: %s", q)
+		}
+	}
+}
+
+// Captured from the actual top automatically selected torrent, not its RSS title.
+// "4th Season - 17" must not be interpreted as Season 17.
+func TestRezeroOrdinalSeasonFile(t *testing.T) {
+	m := Media{Title: "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season", Format: "TV"}
+	for _, ep := range []int{1, 17} {
+		file := fmt.Sprintf("[Erai-raws] Re Zero kara Hajimeru Isekai Seikatsu 4th Season - %02d [1080p CR WEB-DL AVC AAC][MultiSub][FEA1AA5E].mkv", ep)
+		if got := matchingFile([]string{file}, m, ep); got != 0 {
+			t.Fatalf("correct ordinal season file rejected: %s", file)
+		}
+		wrong := strings.Replace(file, "4th Season", "3rd Season", 1)
+		if got := matchingFile([]string{wrong}, m, ep); got != -1 {
+			t.Fatal("wrong ordinal season accepted")
 		}
 	}
 }

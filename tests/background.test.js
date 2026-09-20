@@ -7,6 +7,7 @@ test('background account checks, retry, completion replay, and expired authoriza
   const completions = [];
   const acknowledgements = [];
   const mutations = [];
+  let notes = 'Existing note'; const noteWrites=[];
   let progress = 2; let entryStatus = 'CURRENT';
   let failMutation = false;
   let expired = false;
@@ -44,12 +45,13 @@ test('background account checks, retry, completion replay, and expired authoriza
     if (limited) return { status: 429, headers: { get: () => '60' } };
     if (query.includes('SaveMediaListEntry')) {
       if (failMutation) throw new Error('Offline');
+      if (Object.hasOwn(variables,'notes')) { notes=variables.notes; noteWrites.push(variables); return {ok:true,status:200,json:async()=>({data:{SaveMediaListEntry:{id:1}}})}; }
       mutations.push(variables); progress = query.includes('status:REPEATING') ? 0 : variables.progress; entryStatus = query.includes('status:REPEATING') ? 'REPEATING' : variables.status;
       return { ok: true, status: 200, json: async () => ({ data: { SaveMediaListEntry: { progress } } }) };
     }
     if (query.includes('Viewer')) { viewerReads++; return { ok: true, status: 200, json: async () => ({ data: { Viewer: { id: 7, name: 'fixture' } } }) }; }
     assert.ok(!query.includes('airingSchedule('), 'schedule must use Page.airingSchedules');
-    return { ok: true, status: 200, json: async () => ({ data: { Media: { id: variables.id, title: { romaji: 'Example' }, synonyms: [], format: 'TV', status: 'RELEASING', episodes: 12, nextAiringEpisode: { episode: 9 }, mediaListEntry: { progress, status: entryStatus } }, Page: { airingSchedules: [] } } }) };
+    return { ok: true, status: 200, json: async () => ({ data: { Media: { id: variables.id, title: { romaji: 'Example' }, synonyms: [], format: 'TV', status: 'RELEASING', episodes: 12, nextAiringEpisode: { episode: 9 }, mediaListEntry: { progress, status: entryStatus, notes } }, Page: { airingSchedules: [] } } }) };
   };
   await import('../extension/background.js');
   const inbox = [];
@@ -104,6 +106,23 @@ test('background account checks, retry, completion replay, and expired authoriza
   nativeMessage({v:1,event:'completion',data:rewatchDone});
   await new Promise(r=>setTimeout(r,20));
   assert.equal(mutations.length,count+1,'replayed rewatch event is idempotent');
+
+  const finalEpisode={...completion,id:'series-completed',episode:12,sessionId:'final-session'};
+  nativeMessage({v:1,event:'completion',data:finalEpisode});
+  await until(()=>saved.reviews?.some(r=>r.id==='series-completed'));
+  assert.equal(noteWrites.length,0,'completion only prompts, never writes a note automatically');
+  const reviewId='series-completed';
+  await call('hello',{account:'different'});
+  assert.deepEqual((await call('reviews')).data,[],'other account cannot see prompt');
+  assert.match((await call('saveReview',{reviewId,comment:'wrong account'})).error,/mismatch/);
+  await call('hello',{account:'fixture'});
+  assert.equal((await call('claimReview',{reviewId})).data.claimed,true);
+  assert.ok(!(await call('saveReview',{reviewId,comment:'Great ending'})).error);
+  assert.equal(notes,'Existing note\n\nGreat ending','notes append preserves existing text');
+  assert.equal(progress,12,'notes cannot alter progress');
+  await call('saveReview',{reviewId,comment:'Great ending'});
+  assert.equal(noteWrites.length,1,'duplicate save cannot append twice');
+  assert.equal(saved.reviews.length,0,'saved prompt removed');
   expired = true;
   assert.match((await call('media', { mediaId: 1, fresh: true })).error, /expired/);
   expired = false; limited = true;

@@ -18,6 +18,7 @@ type Media struct {
 	Episodes int      `json:"episodes"`
 }
 type Request struct {
+	KeepVideo      *bool    `json:"keepVideo,omitempty"`
 	Seeding        *bool    `json:"seeding,omitempty"`
 	WatchedPercent *int     `json:"watchedPercent,omitempty"`
 	Rewatch        bool     `json:"rewatch,omitempty"`

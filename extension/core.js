@@ -39,3 +39,13 @@ export function helperMedia(m) {
     titles: [...new Set([...Object.values(m.title), ...(m.synonyms || [])].filter(Boolean))].slice(0, 50),
     format: m.format, status: m.status, episodes: m.episodes || 0 };
 }
+
+
+export function playbackLabel(media) {
+  const episode = nextEpisode(media);
+  if (!episode) return 'Not yet aired';
+  if (media.format === 'MOVIE') return 'Play Movie';
+  if (media.mediaListEntry?.status === 'COMPLETED') return 'Rewatch';
+  if (media.status === 'RELEASING' && (media.mediaListEntry?.progress || 0) >= episode) return `Replay Episode ${episode}`;
+  return `Play Episode ${episode}`;
+}

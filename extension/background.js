@@ -1,8 +1,9 @@
-import { availability, nextEpisode, progressUpdate, helperMedia } from './core.js';
+import { availability, nextEpisode, progressUpdate, helperMedia, playbackLabel } from './core.js';
 import { CLIENT_ID, pastedToken } from './auth.js';
 
 const HOST = 'co.aniqw.player';
 const ports = new Map();
+const reviewOwners = new Map();
 const requests = new Map();
 let native = null;
 let state = { phase: 'idle' };
@@ -16,7 +17,7 @@ const readInFlight = new Map();
 const ready = chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
 const mediaFields = `id title { romaji english native } synonyms format status episodes
   nextAiringEpisode { episode airingAt }
-  mediaListEntry { id progress status repeat }`;
+  mediaListEntry { id progress status repeat notes }`;
 
 async function api(query, variables = {}, candidateToken, fresh = false) {
   const cacheable = !candidateToken && !query.trimStart().startsWith('mutation');
@@ -39,8 +40,10 @@ async function api(query, variables = {}, candidateToken, fresh = false) {
 }
 
 async function apiRequest(query, variables, candidateToken) {
+  const requestGeneration = authGeneration;
   await ready;
   const token = candidateToken ?? (await chrome.storage.local.get('token')).token;
+  if (requestGeneration !== authGeneration) throw new Error('AniList account changed. Retry with the connected account.');
   if (!token) throw new Error('Connect AniList in Ani-QW settings first.');
   if (Date.now() < retryAt) throw rateLimitError();
   const res = await fetch('https://graphql.anilist.co', {
@@ -125,6 +128,14 @@ function queueSync() {
       if (generation !== authGeneration || !(await accountMatches(viewer))) throw new Error('Account changed. Watch progress is saved for later synchronization.');
       const update = progressUpdate(media, c.episode, c);
       if (update) await api('mutation($mediaId:Int!,$progress:Int!,$status:MediaListStatus,$repeat:Int){SaveMediaListEntry(mediaId:$mediaId,progress:$progress,status:$status,repeat:$repeat){id progress}}', update);
+      if (update?.status === 'COMPLETED') {
+        const { reviews = [] } = await chrome.storage.local.get('reviews');
+        if (!reviews.some(r => r.id === c.id)) {
+          reviews.push({ id:c.id, userId:viewer.id, mediaId:c.mediaId, title:media.title.english || media.title.romaji, sessionId:c.sessionId });
+          await chrome.storage.local.set({reviews:reviews.slice(-20)});
+        }
+        broadcast('review', reviews.find(r=>r.id===c.id));
+      }
       await rpc('ack', { completionId: c.id, userId: viewer.id });
       pending.delete(c.id);
       const aired = availability(media);
@@ -140,6 +151,38 @@ async function handle(message, port) {
       record.account = message.account || null;
       if (!native && Date.now() - lastNativeAttempt > 5000) recover().catch(e => broadcast('connection', { error: `${e.message} Run ani-qw doctor if this persists.` }));
       queueSync(); return { state, panelPosition: (await chrome.storage.local.get('panelPosition')).panelPosition || null };
+    case 'reviews': {
+      const { user, reviews = [] } = await chrome.storage.local.get(['user','reviews']);
+      return user && record.account?.toLowerCase() === user.name.toLowerCase() ? reviews.filter(r=>r.userId===user.id) : [];
+    }
+    case 'claimReview': case 'saveReview': case 'dismissReview': {
+      const task = syncChain.then(async () => {
+        const generation = authGeneration;
+        const { Viewer: user } = await api('query { Viewer { id name } }');
+        if (record.account?.toLowerCase() !== user.name.toLowerCase()) throw new Error('AniList account mismatch. Reconnect the correct account.');
+        const {reviews=[]} = await chrome.storage.local.get('reviews');
+        const review = reviews.find(r=>r.id===message.reviewId && r.userId===user.id);
+        if (!review) return {gone:true};
+        const owner = reviewOwners.get(review.id);
+        if (owner && ports.has(owner) && owner !== port) return {claimed:false};
+        reviewOwners.set(review.id,port);
+        if (message.type === 'claimReview') return {claimed:true,...review};
+        if (message.type === 'saveReview') {
+          const comment = typeof message.comment === 'string' ? message.comment.trim() : '';
+          if (!comment || comment.length > 10000) throw new Error('Enter a comment of up to 10,000 characters.');
+          const media = await getMedia(review.mediaId,true);
+          if (!media?.mediaListEntry) throw new Error('This anime is no longer in your AniList list.');
+          if (generation !== authGeneration || !(await accountMatches(user))) throw new Error('AniList account changed. Reconnect the original account before saving notes.');
+          const previous = media.mediaListEntry.notes || '';
+          // Retry after a lost response must not append the same comment twice.
+          const notes = previous === comment || previous.endsWith('\n\n'+comment) ? previous : [previous,comment].filter(Boolean).join('\n\n');
+          if (notes !== previous) await api('mutation($mediaId:Int!,$notes:String!){SaveMediaListEntry(mediaId:$mediaId,notes:$notes){id}}',{mediaId:review.mediaId,notes});
+        }
+        await chrome.storage.local.set({reviews:reviews.filter(r=>r.id!==review.id)});
+        reviewOwners.delete(review.id); broadcast('reviewDismissed',{id:review.id}); return {};
+      });
+      syncChain = task.catch(()=>{}); return task;
+    }
     case 'panelPosition': {
       const p = message.position;
       if (!p || !Number.isFinite(p.left) || !Number.isFinite(p.top) || Math.abs(p.left) > 100000 || Math.abs(p.top) > 100000) throw new Error('Invalid panel position');
@@ -149,7 +192,7 @@ async function handle(message, port) {
       const [media, { autoSelect = true }, { Viewer: user }] = await Promise.all([getMedia(message.mediaId, !!message.fresh), chrome.storage.local.get('autoSelect'), api('query { Viewer { id name } }')]);
       if (!media) throw new Error('Anime not found.');
       if (!record.account || user.name.toLowerCase() !== record.account.toLowerCase()) throw new Error('AniList account mismatch. Sign into the account connected in Ani-QW settings.');
-      return { media, available: availability(media), next: nextEpisode(media), autoSelect };
+      return { media, available: availability(media), next: nextEpisode(media), label: playbackLabel(media), autoSelect };
     }
     case 'autoSelect': await chrome.storage.local.set({ autoSelect: !!message.value }); return {};
     case 'settings': await chrome.runtime.openOptionsPage(); return {};
@@ -191,10 +234,11 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (message.type === 'updates') return rpc('updates');
     if (message.type === 'cacheSettings') return rpc('settings');
     if (message.type === 'saveCache') {
-      if (!Number.isInteger(message.cacheGiB) || message.cacheGiB < 1 || message.cacheGiB > 1024) throw new Error('Choose a cache size from 1 to 1024 GiB.');
+      if (message.keepVideo !== false && (!Number.isInteger(message.cacheGiB) || message.cacheGiB < 1 || message.cacheGiB > 1024)) throw new Error('Choose a cache size from 1 to 1024 GiB.');
       if (!Number.isInteger(message.watchedPercent) || message.watchedPercent < 1 || message.watchedPercent > 99) throw new Error('Choose a watched percentage from 1 to 99.');
+      if (message.keepVideo !== undefined && typeof message.keepVideo !== 'boolean') throw new Error('Cache retention must be enabled or disabled.');
       if (message.seeding !== undefined && typeof message.seeding !== 'boolean') throw new Error('Sharing must be enabled or disabled.');
-      return rpc('settings', { cacheGiB: message.cacheGiB, watchedPercent: message.watchedPercent, seeding: message.seeding });
+      return rpc('settings', { cacheGiB: message.keepVideo === false ? undefined : message.cacheGiB, watchedPercent: message.watchedPercent, seeding: message.seeding, keepVideo: message.keepVideo });
     }
     if (message.type === 'disconnect') { authGeneration++; await chrome.storage.local.remove(['token', 'user']); return {}; }
     if (message.type === 'token') {

@@ -1,13 +1,90 @@
-# Publishing a release
+# Publishing a new version
 
-1. Run `make test integration` and `python3 tests/installer_test.py`. Check the UI fixture in Chromium.
-2. Set `extension/manifest.json` and `appVersion` in `cmd/ani-qw/main.go` to the same release version. Run `python3 scripts/check_version.py`. Review source changes, notices and README images for private information.
-3. Build `bash scripts/package.sh amd64` and `bash scripts/package.sh arm64`; inspect the archives and `dist/SHA256SUMS`.
-4. Commit the intended files, then push `master`. Push a matching tag, for example `v0.1.12` for version `0.1.12`.
-5. The workflow tests, packages both architectures, and creates a GitHub Release with binary bundles, extension ZIP, source archive and checksums. A tag/version mismatch fails publication.
-6. Test the documented installer against that published release from a fresh user account.
+Run these commands from the repository directory. Replace **0.1.14** with your next unused version. Use a new version only when you have new code to release.
 
-The repository is `v4n00/ani-qw`. The one-line installer becomes usable only once the repository's `master/install.sh` and a successful release are public. No credentials are needed to download public releases. The workflow uses GitHub's short-lived token; write permission is restricted to the release job.
+One-time prerequisites on Arch Linux:
+
+```bash
+sudo pacman -S --needed git go nodejs python make gcc mpv ffmpeg
+```
+
+## 1. Start from master
+
+```bash
+git switch master
+git pull --ff-only origin master
+git status --short
+```
+
+If pull fails or Git reports a conflict, resolve that before continuing. Keep your intended changes; do not reset them.
+
+## 2. Set the version in both places
+
+```bash
+RELEASE_VERSION=0.1.14
+python3 scripts/set_version.py "$RELEASE_VERSION"
+python3 scripts/check_version.py
+```
+
+The script updates both the extension manifest and the Go helper. It does not publish anything. Add that version's changes to CHANGELOG.md. Optionally create `docs/releases/0.1.14.md` for custom GitHub release notes; otherwise GitHub generates notes.
+
+## 3. Test
+
+```bash
+make test integration
+python3 tests/installer_test.py
+bash -n install.sh scripts/package.sh
+git diff --check
+```
+
+All commands must succeed. Node, Go, Python, mpv and ffmpeg must be installed. Run the browser fixture when changing the interface. You do not have to build/upload release archives locally; GitHub does that.
+
+## 4. Review and commit
+
+```bash
+git diff --stat
+git add -A
+git diff --cached --stat
+git commit -m "feat: describe the changes in this release"
+git push origin master
+```
+
+Use `fix:` for a bug-fix release or `feat:` for new functionality. Before committing, check that the staged files are intended; local backups, credentials and build artifacts must remain ignored.
+
+Open https://github.com/v4n00/ani-qw/actions and wait for the **master** run to pass. Its **release job being skipped is normal**: pushing master tests/builds the code but does not publish a release.
+
+## 5. Tag the tested commit
+
+In the same terminal (or set RELEASE_VERSION again):
+
+```bash
+git tag -a "v$RELEASE_VERSION" -m "Ani-QW v$RELEASE_VERSION"
+git push origin "v$RELEASE_VERSION"
+```
+
+This triggers a second workflow for the tag. That run publishes the release after tests and both builds pass. You do not need to click “Draft a new release” or upload files yourself.
+
+## 6. Verify publication
+
+Open https://github.com/v4n00/ani-qw/releases and check the new version has all five assets:
+
+- ani-qw-linux-amd64.tar.gz
+- ani-qw-linux-arm64.tar.gz
+- ani-qw-extension.zip
+- ani-qw-source.tar.gz
+- SHA256SUMS
+
+A Git tag alone does not mean publication succeeded. Check the tagged workflow if assets are missing.
+
+## If a workflow fails
+
+- Open the failed job and its first failed step; inspect its actual error.
+- For a temporary network/download error, use **Re-run failed jobs** on that same run. No new version/tag is needed.
+- If a code/workflow fix is needed, commit the fix. If no tag was pushed yet, keep the intended version and test master again.
+- If that version was already tagged, use the next unused patch version for the fix and repeat this guide. Do not delete/move old tags or force-push master.
+- A version mismatch means the helper, manifest, and pushed tag disagree. `set_version.py` updates both files; include them in the commit **before** tagging.
+
+The installer selects GitHub's latest published release, not the newest Git tag or the current master version.
 
 ## Public and private configuration
 

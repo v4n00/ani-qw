@@ -8,13 +8,14 @@ import (
 )
 
 type Settings struct {
+	KeepVideo      bool `json:"keepVideo"`
 	Seeding        bool `json:"seeding"`
 	CacheGiB       int  `json:"cacheGiB"`
 	WatchedPercent int  `json:"watchedPercent"`
 }
 
 func readSettings(dir string) (Settings, error) {
-	s := Settings{CacheGiB: 20, WatchedPercent: 80, Seeding: true}
+	s := Settings{CacheGiB: 20, WatchedPercent: 80, Seeding: true, KeepVideo: true}
 	b, err := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if os.IsNotExist(err) {
 		return s, nil
@@ -50,7 +51,7 @@ func (w *worker) savePreferences(r Request) (Settings, error) {
 	if err != nil {
 		return s, err
 	}
-	if value == nil && percent == nil && r.Seeding == nil {
+	if value == nil && percent == nil && r.Seeding == nil && r.KeepVideo == nil {
 		return s, nil
 	}
 	if value != nil && (*value < 1 || *value > 1024) {
@@ -65,6 +66,9 @@ func (w *worker) savePreferences(r Request) (Settings, error) {
 		}
 		s.WatchedPercent = *percent
 	}
+	if r.KeepVideo != nil {
+		s.KeepVideo = *r.KeepVideo
+	}
 	if r.Seeding != nil {
 		s.Seeding = *r.Seeding
 	}
@@ -75,7 +79,14 @@ func (w *worker) savePreferences(r Request) (Settings, error) {
 	// when the playback lock confirms that all readers have closed.
 	if w.cancel == nil && w.playMu.TryLock() {
 		defer w.playMu.Unlock()
-		err = evictCache(w.p.Cache, int64(s.CacheGiB)<<30)
+		err = evictCache(w.p.Cache, s.cacheLimit())
 	}
 	return s, err
+}
+
+func (s Settings) cacheLimit() int64 {
+	if !s.KeepVideo {
+		return 0
+	}
+	return int64(s.CacheGiB) << 30
 }

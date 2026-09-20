@@ -13,11 +13,11 @@ go build -tags nosqlite -trimpath -o "$stage/bin/ani-qw" ./cmd/ani-qw
 python3 scripts/collect_notices.py
 cp -R extension docs "$stage/"
 cp icon.png "$stage/"
-cp install.sh LICENSE THIRD_PARTY.md README.md "$stage/"
+cp install.sh LICENSE THIRD_PARTY.md README.md CHANGELOG.md "$stage/"
 cp bin/THIRD_PARTY_LICENSES.txt "$stage/"
 tar -czf "dist/ani-qw-linux-$arch.tar.gz" -C "$stage" .
 # Explicit allowlist excludes caches, local progress notes, credentials and git metadata.
-tar -czf dist/ani-qw-source.tar.gz cmd extension scripts tests docs .github go.mod go.sum Makefile install.sh README.md LICENSE THIRD_PARTY.md .gitignore package.json icon.png
+tar -czf dist/ani-qw-source.tar.gz cmd extension scripts tests docs .github go.mod go.sum Makefile install.sh README.md CHANGELOG.md LICENSE THIRD_PARTY.md .gitignore package.json icon.png
 python3 - <<'PY'
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
