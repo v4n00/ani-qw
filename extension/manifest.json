@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ani-QW",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Stream anime from AniList to mpv on Linux.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwjGT2ErKS3OF10tXPGUuISO6lHjEDBBQSzQozlVC9MYJADEgukY2799A1OENUQtUl0EXHrlTQ4rS434cr60GRtxqVaQRMDtT9lyfiDgdKBC+alp+B3tLSGSWj3YJdXDT0ZdbYoLQc4ViQgGjZ1tVNdon9F7PLwzCSXspFaT4665hhi9fs4MI+Kd9u/GOTUcKOXMaTFgjNkCK7yJfxKKx51yMhSkZp60UaNrV9fSPOVbsybgK4edERa4W/JoaDsUMiXcv3y9IKbV9hACcGl4dPFmEQ0DawJu74Zb7vfJhU/vjAff/F3uAzm6VmAdAWLBnvZX0MRF0RfyklEBVz5iiKwIDAQAB",
   "permissions": [
