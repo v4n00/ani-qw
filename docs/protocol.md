@@ -13,7 +13,8 @@ Every request includes `v: 1`, a nonempty string `id`, and `command`. Request ID
 | `state` | — | `{state, completions}` snapshot |
 | `search` | `media`, `episode`, optional `query` | Array of release records |
 | `files` | `media`, `episode`, `torrent` | Playable file records with original torrent indices |
-| `play` | `media`, `episode`, `userId`, optional `torrent`, `fileIndex` | New or existing session state |
+| `resume` | `media`, `episode`, `userId`, optional `rewatch`, `repeatBase` | Saved `{position}` in seconds; read-only, account/pass bound |
+| `play` | `media`, `episode`, `userId`, optional `torrent`, `fileIndex`, `startOver` | New or existing session state |
 | `cancel` | — | Cancels current metadata/search job for this connection |
 | `stop` | optional `sessionId` | Cancels matching active playback |
 | `ack` | `completionId`, `userId` | Durably removes a matching completion |
@@ -49,3 +50,5 @@ The worker uses an exclusive lock in its private runtime directory. Multiple nat
 Resume points are stored separately by account/media/episode, include rewatch-pass identity, save every five seconds and on exit, and clear after completion. mpv receives both window and media titles plus the saved start position.
 
 `updates` returns `{version,url,helperVersion}` for the latest stable published GitHub release. It has a 12-second network timeout and caches results/errors for one minute. It never downloads or runs an update.
+
+Before launching, the extension queries `resume` and offers Resume/Start over when a saved position exists. `play.startOver=true` starts at zero without deleting the saved position before playback succeeds. Cancel launches nothing.

@@ -42,3 +42,11 @@ func saveResume(dir string, r Request, pos float64, completed bool) error {
 	}
 	return atomicJSON(path, resumePoint{pos, r.Rewatch, r.RepeatBase})
 }
+
+// Starting over affects this launch only; retain the saved position until playback succeeds.
+func playbackStart(dir string, r Request) float64 {
+	if r.StartOver {
+		return 0
+	}
+	return readResume(dir, r)
+}

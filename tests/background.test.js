@@ -7,7 +7,8 @@ test('background account checks, retry, completion replay, and expired authoriza
   const completions = [];
   const acknowledgements = [];
   const mutations = [];
-  let notes = 'Existing note'; const noteWrites=[];
+  const nativeRequests=[];
+  let notes = 'Existing note', score=0; const noteWrites=[];
   let progress = 2; let entryStatus = 'CURRENT';
   let failMutation = false;
   let expired = false;
@@ -28,8 +29,9 @@ test('background account checks, retry, completion replay, and expired authoriza
       connectNative() { return {
         onMessage: { addListener(fn) { nativeMessage = fn; } }, onDisconnect: event('nativeDisconnect'),
         postMessage(msg) {
+          nativeRequests.push(msg);
           if (msg.command === 'ack') { acknowledgements.push(msg.completionId); const i = completions.findIndex(c => c.id === msg.completionId); if (i >= 0) completions.splice(i, 1); }
-          queueMicrotask(() => nativeMessage({ v: 1, id: msg.id, event: 'result', data: msg.command === 'state' ? { state: { phase: 'idle' }, completions: [...completions] } : {} }));
+          queueMicrotask(() => nativeMessage({ v: 1, id: msg.id, event: 'result', data: msg.command === 'state' ? { state: { phase: 'idle' }, completions: [...completions] } : msg.command === 'play' ? {sessionId:'session'} : {} }));
         }
       }; }
     },
@@ -45,13 +47,13 @@ test('background account checks, retry, completion replay, and expired authoriza
     if (limited) return { status: 429, headers: { get: () => '60' } };
     if (query.includes('SaveMediaListEntry')) {
       if (failMutation) throw new Error('Offline');
-      if (Object.hasOwn(variables,'notes')) { notes=variables.notes; noteWrites.push(variables); return {ok:true,status:200,json:async()=>({data:{SaveMediaListEntry:{id:1}}})}; }
+      if (Object.hasOwn(variables,'notes') || Object.hasOwn(variables,'score')) { if(Object.hasOwn(variables,'notes'))notes=variables.notes;if(Object.hasOwn(variables,'score'))score=variables.score; noteWrites.push(variables); return {ok:true,status:200,json:async()=>({data:{SaveMediaListEntry:{id:1}}})}; }
       mutations.push(variables); progress = query.includes('status:REPEATING') ? 0 : variables.progress; entryStatus = query.includes('status:REPEATING') ? 'REPEATING' : variables.status;
       return { ok: true, status: 200, json: async () => ({ data: { SaveMediaListEntry: { progress } } }) };
     }
-    if (query.includes('Viewer')) { viewerReads++; return { ok: true, status: 200, json: async () => ({ data: { Viewer: { id: 7, name: 'fixture' } } }) }; }
+    if (query.includes('Viewer')) { viewerReads++; return { ok: true, status: 200, json: async () => ({ data: { Viewer: { id: 7, name: 'fixture', mediaListOptions:{scoreFormat:'POINT_10_DECIMAL'} } } }) }; }
     assert.ok(!query.includes('airingSchedule('), 'schedule must use Page.airingSchedules');
-    return { ok: true, status: 200, json: async () => ({ data: { Media: { id: variables.id, title: { romaji: 'Example' }, synonyms: [], format: 'TV', status: 'RELEASING', episodes: 12, nextAiringEpisode: { episode: 9 }, mediaListEntry: { progress, status: entryStatus, notes } }, Page: { airingSchedules: [] } } }) };
+    return { ok: true, status: 200, json: async () => ({ data: { Media: { id: variables.id, title: { romaji: 'Example' }, synonyms: [], format: 'TV', status: 'RELEASING', episodes: 12, nextAiringEpisode: { episode: 9 }, mediaListEntry: { progress, status: entryStatus, notes, score }, relations:{edges:[]} }, Page: { airingSchedules: [] } } }) };
   };
   await import('../extension/background.js');
   const inbox = [];
@@ -61,13 +63,21 @@ test('background account checks, retry, completion replay, and expired authoriza
   const until = async predicate => { for (let i = 0; i < 100; i++) { if (predicate()) return; await new Promise(r => setTimeout(r, 10)); } throw new Error('Expected background event was not delivered'); };
   let id = 0;
   const call = async (type, data = {}) => { const requestId = String(++id); await pageListener({ id: requestId, type, ...data }); return inbox.find(m => m.id === requestId); };
+  const unsupported=await call('future-request');
+  assert.equal(unsupported.code,'unsupported_request');
+  assert.match(unsupported.error,/future-request.*Reload Ani-QW/);
   await call('hello', { account: 'different' });
   assert.match((await call('media', { mediaId: 1 })).error, /mismatch/);
+  assert.match((await call('resume',{mediaId:1,episode:3})).error,/mismatch/);
   await call('hello', { account: 'fixture' });
   assert.match((await call('panelPosition', { position: { left: 'bad', top: 5 } })).error, /Invalid/);
   await call('panelPosition', { position: { left: 25, top: 90 } });
   assert.deepEqual((await call('hello', { account: 'fixture' })).data.panelPosition, { left: 25, top: 90 });
   assert.equal((await call('media', { mediaId: 1 })).data.next, 3);
+  await call('resume',{mediaId:1,episode:3});
+  assert.equal(nativeRequests.find(r=>r.command==='resume').userId,7,'resume is bound to authenticated user');
+  await call('play',{mediaId:1,episode:3,startOver:true});
+  assert.equal(nativeRequests.find(r=>r.command==='play').startOver,true,'explicit restart reaches helper');
   const before = reads;
   await Promise.all(Array.from({length: 8}, () => call('media', { mediaId: 1 })));
   assert.equal(reads, before, 'focus changes and concurrent tabs reuse recent metadata');
@@ -77,13 +87,19 @@ test('background account checks, retry, completion replay, and expired authoriza
   progress = 2;
   assert.match((await call('play', { mediaId: 1, episode: 10 })).error, /not aired/);
   const completion = { id: 'completion-1', sessionId: 'session', userId: 7, mediaId: 1, episode: 3 };
+  await call('play',{mediaId:1,episode:3,notification:true});
   completions.push(completion); failMutation = true;
   nativeMessage({ v: 1, event: 'completion', data: completion });
   await until(() => inbox.some(m => m.event === 'sync' && m.data.error === 'Offline'));
   assert.equal(acknowledgements.length, 0, 'failed sync must remain unacknowledged');
+  assert.equal(saved.notificationReads,undefined,'failed progress sync leaves notification unread');
   failMutation = false; listeners.alarm({ name: 'sync' });
   await until(() => acknowledgements.length === 1);
   assert.deepEqual(mutations, [{ mediaId: 1, progress: 3, status: 'CURRENT' }]);
+  assert.deepEqual(saved.notificationReads[7],['1:3'],'successful notification playback persists read marker');
+  assert.deepEqual((await call('hello',{account:'fixture'})).data.notificationReads,['1:3'],'read marker survives reconnect');
+  assert.deepEqual((await call('hello',{account:'different'})).data.notificationReads,[],'read markers are account isolated');
+  await call('hello',{account:'fixture'});
   await until(() => inbox.some(m => m.event === 'synced'));
   assert.deepEqual(inbox.find(m => m.event === 'synced').data, {mediaId:1,episode:3,sessionId:'session',nextEpisode:4}, 'sync success carries session identity and aired successor');
   nativeMessage({ v: 1, event: 'completion', data: completion });
@@ -117,12 +133,23 @@ test('background account checks, retry, completion replay, and expired authoriza
   assert.match((await call('saveReview',{reviewId,comment:'wrong account'})).error,/mismatch/);
   await call('hello',{account:'fixture'});
   assert.equal((await call('claimReview',{reviewId})).data.claimed,true);
-  assert.ok(!(await call('saveReview',{reviewId,comment:'Great ending'})).error);
+  const context=(await call('reviewContext',{reviewId})).data;
+  assert.equal(context.scoring.format,'POINT_10_DECIMAL');
+  assert.deepEqual(context.prequels,[]);
+  assert.match((await call('saveReview',{reviewId,score:11,scoreFormat:'POINT_10_DECIMAL'})).error,/score from/);
+  assert.match((await call('saveReview',{reviewId,score:8,scoreFormat:'POINT_100'})).error,/scoring settings changed/);
+  assert.ok(!(await call('saveReview',{reviewId,comment:'Great ending',score:8.5,scoreFormat:'POINT_10_DECIMAL'})).error);
   assert.equal(notes,'Existing note\n\nGreat ending','notes append preserves existing text');
-  assert.equal(progress,12,'notes cannot alter progress');
+  assert.equal(progress,12,'review cannot alter progress');assert.equal(score,8.5);
   await call('saveReview',{reviewId,comment:'Great ending'});
   assert.equal(noteWrites.length,1,'duplicate save cannot append twice');
   assert.equal(saved.reviews.length,0,'saved prompt removed');
+  saved.reviews=[{id:'score-only',userId:7,mediaId:1}];
+  await call('claimReview',{reviewId:'score-only'});
+  assert.ok(!(await call('saveReview',{reviewId:'score-only',score:0,scoreFormat:'POINT_10_DECIMAL'})).error);
+  assert.equal(score,0);assert.equal(notes,'Existing note\n\nGreat ending');
+  assert.deepEqual(noteWrites.at(-1),{mediaId:1,score:0},'score-only save must omit notes and progress');
+  assert.match((await call('reviewContext',{reviewId:'score-only'})).error,/closed|pending/);
   expired = true;
   assert.match((await call('media', { mediaId: 1, fresh: true })).error, /expired/);
   expired = false; limited = true;

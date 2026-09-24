@@ -3,7 +3,7 @@ if (new URLSearchParams(location.search).get('capture') === '2') document.docume
 history.replaceState({}, '', '/anime/1/Example-Show/');
 const listeners = [];
 let fixtureAuto = true, fixtureInvalidated = false;
-let savedComment=null;
+let savedComment=null, savedScore=null, fixtureResume=0, lastPlay=null, resumeError=null, fixtureLabel=null;
 let freshRequests = 0;
 let fixtureProgress = null;
 let fixtureState = { phase: 'idle' };
@@ -13,18 +13,21 @@ window.chrome = { runtime: { connect() { return {
   onMessage: { addListener(fn) { listeners.push(fn); } }, onDisconnect: { addListener() {} },
   postMessage(message) { if(fixtureInvalidated)throw new Error('Extension context invalidated.'); setTimeout(() => {
     let data = {};
+    if(message.type==='resume' && resumeError){for(const listener of listeners)listener({id:message.id,error:resumeError});return;}
+    if(message.type==='resume') data={position:fixtureResume};
     if(message.type==='reviews') data=[];
     if(message.type==='claimReview') data={claimed:true};
-    if(message.type==='saveReview') {savedComment=message.comment;emit('reviewDismissed',{id:message.reviewId});}
+    if(message.type==='reviewContext') data={scoring:{format:'POINT_10_DECIMAL',max:10,step:0.1,label:'Score / 10'},current:{mediaListEntry:{score:0}},prequels:[{id:2,title:{romaji:'First season'},mediaListEntry:{score:8,notes:'Earlier note <script>unsafe</script>'}},{id:3,title:{romaji:'Original story'},mediaListEntry:null}]};
+    if(message.type==='saveReview') {savedScore=message.score;savedComment=message.comment;emit('reviewDismissed',{id:message.reviewId});}
     if(message.type==='dismissReview') emit('reviewDismissed',{id:message.reviewId});
     if (message.type === 'hello') data.panelPosition = fixturePanelPosition;
     if (message.type === 'panelPosition') fixturePanelPosition = message.position;
     if (message.type === 'media' && message.fresh) freshRequests++;
-    if (message.type === 'media') data = { media: media(message.mediaId), next: message.mediaId === 3 ? null : fixtureProgress !== null ? fixtureProgress + 1 : message.mediaId === 1 ? 5 : 29, available: message.mediaId === 1 ? 7 : 45, autoSelect: fixtureAuto };
+    if (message.type === 'media') data = { media: media(message.mediaId), next: message.mediaId === 3 ? null : fixtureProgress !== null ? fixtureProgress + 1 : message.mediaId === 1 ? 5 : 29, available: message.mediaId === 1 ? 7 : 45, autoSelect: fixtureAuto, label:fixtureLabel };
     if (message.type === 'autoSelect') fixtureAuto = message.value;
     if (message.type === 'search') data = [{ name: '[Group] Example Show - 05 [1080p]', hash: '1'.repeat(40), size: '1.2 GiB', resolution: '1080p', seeders: 42, leechers: 3 }];
     if (message.type === 'files') data = [{ index: 0, name: 'Example Show - 05.mkv', size: 1288490188, suggested: true }];
-    if (message.type === 'play') { fixtureState = { sessionId: crypto.randomUUID(), media: { id: message.mediaId, title: 'Example Show' }, episode: message.episode, phase: 'playing', filename: 'Example Show - 05.mkv', percent: 32.4, downloaded: 414720000, size: 1288490188, downloadSpeed: 2097152, uploadSpeed: 524288, seeds: 14, peers: 23, position: 345, duration: 1440 }; emit('state', fixtureState); }
+    if (message.type === 'play') { lastPlay=message; fixtureState = { sessionId: crypto.randomUUID(), media: { id: message.mediaId, title: 'Example Show' }, episode: message.episode, phase: 'playing', filename: 'Example Show - 05.mkv', percent: 32.4, downloaded: 414720000, size: 1288490188, downloadSpeed: 2097152, uploadSpeed: 524288, seeds: 14, peers: 23, position: 345, duration: 1440 }; emit('state', fixtureState); }
     if (message.type === 'stop') { fixtureState = { ...fixtureState, phase: 'idle', endReason: 'stopped', downloadSpeed: 0, uploadSpeed: 0 }; emit('state', fixtureState); }
     for (const listener of listeners) listener({ id: message.id, data });
   }, 50); }
@@ -37,6 +40,7 @@ document.getElementById('checks-button').onclick = async () => {
   const output = document.getElementById('checks'); output.textContent = '';
   const assert = (condition, message) => { if (!condition) throw new Error(message); output.textContent += `PASS ${message}\n`; };
   const pause = () => new Promise(resolve => setTimeout(resolve, 300));
+  const until = async predicate => { for(let i=0;i<30 && !predicate();i++)await pause(); };
   try {
     for (let i=0;i<20 && document.getElementById('ani-qw-controls')?.shadowRoot.querySelector('.play')?.disabled;i++) await pause();
     const host = document.getElementById('ani-qw-controls'), root = host.shadowRoot;
@@ -56,6 +60,8 @@ document.getElementById('checks-button').onclick = async () => {
     assert(!overlay.querySelector('dialog'), 'chooser closes after playback');
     assert(!overlay.querySelector('.panel').hidden, 'stream panel visible');
     assert(overlay.querySelector('.stats').textContent.includes('14 seeds'), 'live peer statistics rendered');
+    assert(overlay.querySelector('.stats').children[2].textContent==='5 / 24 min watched','watched time sits bottom-left');
+    assert([...overlay.querySelector('.stats').children].every(e=>e.title),'all four stats have hover descriptions');
     assert(!root.querySelector('.play').disabled && root.querySelector('.play').textContent === 'Streaming', 'Streaming is available as panel toggle');
     root.querySelector('.play').click(); assert(overlay.querySelector('.panel').hidden,'Streaming hides panel');
     root.querySelector('.play').click(); assert(!overlay.querySelector('.panel').hidden,'Streaming reopens panel');
@@ -134,26 +140,91 @@ document.getElementById('checks-button').onclick = async () => {
     const noteDialog=overlay.querySelector('dialog[aria-label="Add completion note"]');
     assert(noteDialog?.open,'completed show offers optional Notes prompt');
     noteDialog.querySelector('textarea').value='Memorable finale';
-    [...noteDialog.querySelectorAll('button')].find(b=>b.textContent==='Save to AniList Notes').click();await pause();
+    await pause();
+    assert(noteDialog.querySelector('.review-history').textContent.includes('Earlier note <script>unsafe</script>'),'prequel notes render as plain text');
+    assert(noteDialog.querySelectorAll('.review-prequel').length===2,'recursive prequel history rendered');
+    noteDialog.querySelector('[aria-label="Completion score"]').value='8.5';
+    [...noteDialog.querySelectorAll('button')].find(b=>b.textContent==='Save to AniList').click();await pause();
+    assert(savedScore===8.5,'explicit Save submits score');
     assert(savedComment==='Memorable finale','only explicit Save submits completion comment');
     history.pushState({},'', '/notifications');
     const rows=document.createElement('div');
-    rows.innerHTML='<div class="notification hasMedia"><div class="details"><div>Episode 17 of <a href="/anime/189046/ReZERO/">Re:ZERO</a> aired.</div><div class="time">4 days ago</div></div></div><div class="notification hasMedia"><div class="details"><div><a href="/anime/2/Another/">Another</a> was recently added to the site.</div></div></div>';
-    document.body.append(rows);await pause();await pause();
-    assert(rows.querySelectorAll('.aniqw-notification').length===1,'only aired-episode notifications receive Play buttons');
-    const notificationButton=rows.querySelector('.aniqw-notification').shadowRoot.querySelector('button');
+    rows.innerHTML='<div class="notification unread hasMedia"><div class="details"><div>Episode 17 of <a href="/anime/189046/ReZERO/">Re:ZERO</a> aired.</div><div class="time">4 days ago</div></div></div><div class="notification hasMedia"><div class="details"><div><a href="/anime/2/Another/">Another</a> was recently added to the site.</div></div></div>';
+    rows.className='notifications';
+    const feed=document.createElement('div');feed.className='notifications-feed';feed.style.cssText='display:grid;column-gap:20px';
+    const filters=document.createElement('div');filters.className='filters';filters.textContent='All';feed.append(filters,rows);
+    document.body.append(feed);await pause();await pause();
+    assert(feed.querySelectorAll('.aniqw-notification').length===1,'only aired-episode notifications receive Play buttons');
+    const notificationButton=feed.querySelector('.aniqw-notification').shadowRoot.querySelector('button');
+    assert(notificationButton.classList.contains('unread'),'unread notification button is muted');
     assert(notificationButton.textContent==='Play episode 17','notification identifies its exact episode');
-    assert(rows.querySelector('.aniqw-notification').previousElementSibling.classList.contains('time'),'notification action follows timestamp');
-    assert(notificationButton.getBoundingClientRect().top>rows.querySelector('.time').getBoundingClientRect().bottom,'notification button stays below timestamp');
+    assert(feed.querySelector('.aniqw-play-column').parentElement===feed && !rows.querySelector('.aniqw-notification'),'playback has a separate feed column');
+    const cardRect=rows.querySelector('.notification').getBoundingClientRect(),buttonRect=notificationButton.getBoundingClientRect();
+    assert(Math.abs(cardRect.top+cardRect.height/2-buttonRect.top-buttonRect.height/2)<2,'play button aligns with notification center');
+    assert(notificationButton.getBoundingClientRect().left>=rows.querySelector('.notification').getBoundingClientRect().right,'notification button sits to the right of the card');
     notificationButton.click();assert(notificationButton.disabled && notificationButton.classList.contains('starting'),'notification shows Starting immediately');await pause();await pause();
     assert(fixtureState.media.id===189046 && fixtureState.episode===17,'notification plays its anime and episode without navigation');
     assert(notificationButton.textContent==='Streaming' && notificationButton.classList.contains('streaming'),'notification shows purple Streaming');
     notificationButton.click();assert(overlay.querySelector('.panel').hidden,'notification Streaming toggles playback panel');
     notificationButton.click();assert(!overlay.querySelector('.panel').hidden,'notification Streaming reopens playback panel');
+    emit('notificationRead',{account:'fixture',key:'189046:17'});
+    assert(!rows.querySelector('.notification').classList.contains('unread') && !notificationButton.classList.contains('unread'),'synced notification read clears unread styling');
     fixtureState={...fixtureState,sessionId:'final-episode',episode:45};emit('state',fixtureState);await pause();
     assert(footer.lastElementChild.disabled,'Next disabled at last available episode');
     fixtureState={...fixtureState,phase:'idle'};emit('state',fixtureState);
     assert(!footer.firstElementChild.disabled,'Replay enabled after playback closes');
+    history.pushState({},'', '/home');fixtureProgress=null;
+    const preview=document.createElement('div');preview.className='list-preview';
+    preview.innerHTML='<div class="media-preview-card small"><a class="cover" href="/anime/1/Example/"><div class="image-text">Ep 8 in 2d</div><div class="image-overlay"><span class="plus-progress">4 +</span></div></a><div class="content"><a class="title" href="/anime/1/Example/">Example Show</a><div class="info">Progress: 4/12</div></div></div><div class="media-preview-card"><a class="cover" href="/manga/5/Manga/">Manga</a><div class="content">Manga</div></div>';
+    document.body.append(preview);await pause();
+    const spacer=document.createElement('div');spacer.style.cssText='width:300px;height:115px;flex:none';preview.prepend(spacer);
+    preview.querySelector('.media-preview-card').className='media-preview-card small info-left';
+    assert(preview.querySelector('.media-preview-card').hasAttribute('data-aniqw-home'),'Vue class replacement preserves hover marker');
+    assert(preview.querySelectorAll('.aniqw-home-play').length===1,'home Play only added to anime cards');
+    assert(getComputedStyle(preview.querySelector('.plus-progress')).display==='none','home progress increment hidden');
+    assert(getComputedStyle(preview.querySelector('.image-text')).opacity==='1','home airing countdown preserved');
+    preview.querySelector('.cover').focus();
+    const homeButton=preview.querySelector('.aniqw-home-play').shadowRoot.querySelector('button');await pause();homeButton.focus();
+    assert(homeButton.textContent==='Play Episode 5','home shows next episode number');
+    assert(getComputedStyle(preview.querySelector('.media-preview-card')).zIndex==='40','focused left-opening card rises above siblings');
+    homeButton.scrollIntoView({block:'center'});
+    const hoverRect=homeButton.getBoundingClientRect();
+    const popupHit=document.elementFromPoint(hoverRect.left+5,hoverRect.top+5);
+    assert(preview.querySelector('.info').getBoundingClientRect().bottom<=hoverRect.top,'left popup progress stays above Play');
+    assert(Math.abs(hoverRect.width-preview.querySelector('.aniqw-home-play').getBoundingClientRect().width)<1,'home Play fills popup content width');
+    assert(popupHit===preview.querySelector('.aniqw-home-play'),'left-opening Play is not covered by adjacent cards');
+    for(const label of ['Play Movie','Replay Episode 5','Rewatch']){fixtureLabel=label;emit('synced',{mediaId:1,episode:4,sessionId:'labels'});await pause();assert(homeButton.textContent===label,`home shares ${label} label`);}fixtureLabel=null;emit('synced',{mediaId:1,episode:4,sessionId:'labels'});await pause();
+    assert(getComputedStyle(preview.querySelector('.content')).visibility==='visible','popup stays visible when focus moves into Play');
+    fixtureResume=754;lastPlay=null;homeButton.click();await pause();await pause();
+    let resumePrompt=overlay.querySelector('dialog[aria-label="Resume episode"]');
+    assert(resumePrompt?.open && resumePrompt.textContent.includes('Resume at 12:34'),'saved playback offers explicit timestamp');
+    assert(lastPlay===null,'resume prompt does not launch before choice');
+    [...resumePrompt.querySelectorAll('button')].find(b=>b.textContent==='Start over').click();await pause();
+    await until(()=>lastPlay!==null);
+    assert(lastPlay?.startOver===true && lastPlay.mediaId===1 && lastPlay.episode===5,'home Start over launches next episode at zero');
+    assert(homeButton.textContent==='Streaming','home button reflects streaming');
+    fixtureState={...fixtureState,phase:'idle'};emit('state',fixtureState);
+    homeButton.click();await pause();await pause();resumePrompt=overlay.querySelector('dialog[aria-label="Resume episode"]');
+    [...resumePrompt.querySelectorAll('button')].find(b=>b.textContent.startsWith('Resume at')).click();await pause();
+    await until(()=>lastPlay?.startOver===false);
+    assert(lastPlay.startOver===false,'Resume preserves saved playback position');
+    fixtureState={...fixtureState,phase:'idle'};emit('state',fixtureState);lastPlay=null;
+    homeButton.click();await pause();await pause();resumePrompt=overlay.querySelector('dialog[aria-label="Resume episode"]');
+    [...resumePrompt.querySelectorAll('button')].find(b=>b.textContent==='Cancel').click();await pause();
+    assert(lastPlay===null,'cancel resume starts no playback');fixtureResume=0;
+    for(const error of ['Unknown request','unknown command']){
+      resumeError=error;lastPlay=null;homeButton.click();await until(()=>lastPlay!==null);
+      assert(lastPlay?.episode===5 && lastPlay.startOver===false,`${error}: old component still launches with automatic resume`);
+      fixtureState={...fixtureState,phase:'idle'};emit('state',fixtureState);await pause();
+    }
+    resumeError='AniList authorization expired';lastPlay=null;homeButton.click();await pause();await pause();
+    assert(lastPlay===null,'resume authorization failure does not fall through to playback');resumeError=null;
+    const listPage=document.createElement('div');
+    listPage.innerHTML='<div class="list-wrap"><h3 class="section-name">Watching</h3><div class="list-entries"><div class="entry"><div class="title"><a href="/anime/1/Example/">Example</a></div><div class="status">Current</div></div></div></div><div class="list-wrap"><h3 class="section-name">Completed</h3><div class="list-entries"><div class="entry"><div class="title"><a href="/anime/2/Other/">Other</a></div><div class="status">Completed</div></div></div></div>';
+    document.body.append(listPage);history.pushState({},'', '/user/fixture/animelist');await pause();
+    assert(!listPage.querySelector('.aniqw-list-play'),'anime list play buttons removed');
+    history.pushState({},'', '/user/someone-else/animelist');document.querySelector('h1').textContent='Other list';await pause();
+    assert(!listPage.querySelector('.aniqw-list-play'),'other users lists have no playback injection');
     fixtureInvalidated=true;
     history.pushState({},'', '/anime/4/Reload-Test/');document.querySelector('h1').textContent='Reload Test';await pause();await pause();
     const refreshRoot=document.querySelector('#ani-qw-controls').shadowRoot;

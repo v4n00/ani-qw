@@ -4,6 +4,29 @@ Changes are listed newest first. Historical CI-only tags are included so they ar
 
 ## Unreleased
 
+## 0.1.16
+
+- Completion prompts accept an optional score using your AniList scoring scale, and show scores and notes from all anime prequels recursively.
+- Home preview Play buttons fill the popup width and stay aligned below progress text.
+- Torrent filenames have a visible link treatment for changing releases without an extra button.
+- Watched minutes sit in the bottom-left playback widget; all four widgets have hover descriptions.
+
+- Home playback uses the same episode, movie, replay, and rewatch labels as anime pages.
+- Removed anime-list playback buttons.
+- Fixed left-opening home popups losing hover access when AniList replaces card classes.
+- Unread notification buttons use a muted tint; successfully synced notification playback marks that notification read locally in Ani-QW. AniList offers no per-notification server-side read operation.
+
+### Fixed
+- Resume preflight no longer blocks playback when an older loaded extension/helper does not support it; legacy automatic resume remains available.
+
+### Added
+- Play next directly from home anime previews.
+- Choose Resume at the saved timestamp or Start over before launching an unfinished episode.
+
+### Changed
+- Wider notifications with a separate playback column further to the right.
+- Home hover popups remain open while hovered or focused; hide quick-progress controls and retain the airing countdown.
+
 ## 0.1.15
 
 ### Changed

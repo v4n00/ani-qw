@@ -45,3 +45,25 @@ func TestWatchedSetting(t *testing.T) {
 		}
 	}
 }
+
+func TestStartOverDoesNotDiscardResumeBeforePlayback(t *testing.T) {
+	dir := t.TempDir()
+	r := Request{UserID: 1, Media: Media{ID: 2}, Episode: 3}
+	if err := saveResume(dir, r, 754, false); err != nil {
+		t.Fatal(err)
+	}
+	if playbackStart(dir, r) != 754 {
+		t.Fatal("resume not applied")
+	}
+	r.StartOver = true
+	if playbackStart(dir, r) != 0 {
+		t.Fatal("start over did not start at zero")
+	}
+	if readResume(dir, r) != 754 {
+		t.Fatal("lookup/start over destroyed saved resume")
+	}
+	r.Episode++
+	if readResume(dir, r) != 0 {
+		t.Fatal("resume leaked to another episode")
+	}
+}

@@ -182,6 +182,14 @@ func (w *worker) serve(p *peer) {
 		w.lastUse = time.Now()
 		w.mu.Unlock()
 		switch r.Command {
+		case "resume":
+			if err := validate(r); err != nil {
+				w.reply(p, r, nil, err)
+			} else if r.UserID < 1 {
+				w.reply(p, r, nil, errors.New("invalid user"))
+			} else {
+				w.reply(p, r, map[string]any{"position": readResume(w.p.State, r)}, nil)
+			}
 		case "updates":
 			go func(r Request) { result, err := checkUpdates(); w.reply(p, r, result, err) }(r)
 		case "settings":

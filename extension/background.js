@@ -1,4 +1,5 @@
 import { availability, nextEpisode, progressUpdate, helperMedia, playbackLabel } from './core.js';
+import { scoreOptions, validateScore, reviewHistory } from './review.js';
 import { CLIENT_ID, pastedToken } from './auth.js';
 
 const HOST = 'co.aniqw.player';
@@ -136,6 +137,15 @@ function queueSync() {
         }
         broadcast('review', reviews.find(r=>r.id===c.id));
       }
+      const {notificationLaunches={},notificationReads={}}=await chrome.storage.local.get(['notificationLaunches','notificationReads']);
+      const launch=notificationLaunches[c.sessionId];
+      if(launch?.userId===viewer.id && launch.mediaId===c.mediaId && launch.episode===c.episode){
+        const key=`${c.mediaId}:${c.episode}`,reads=notificationReads[viewer.id]||[];
+        notificationReads[viewer.id]=[...new Set([...reads,key])].slice(-1000);
+        // Persist before acknowledging completion so retries can finish notification handling.
+        await chrome.storage.local.set({notificationReads});
+        broadcast('notificationRead',{account:viewer.name,key});
+      }
       await rpc('ack', { completionId: c.id, userId: viewer.id });
       pending.delete(c.id);
       const aired = availability(media);
@@ -147,13 +157,35 @@ function queueSync() {
 async function handle(message, port) {
   const record = ports.get(port);
   switch (message.type) {
-    case 'hello':
+    case 'hello': {
       record.account = message.account || null;
       if (!native && Date.now() - lastNativeAttempt > 5000) recover().catch(e => broadcast('connection', { error: `${e.message} Run ani-qw doctor if this persists.` }));
-      queueSync(); return { state, panelPosition: (await chrome.storage.local.get('panelPosition')).panelPosition || null };
+      const stored=await chrome.storage.local.get(['panelPosition','user','notificationReads']);
+      const reads=stored.user?.name.toLowerCase()===record.account?.toLowerCase()?stored.notificationReads?.[stored.user.id]||[]:[];
+      queueSync(); return { state, panelPosition: stored.panelPosition || null, notificationReads:reads };
+    }
     case 'reviews': {
       const { user, reviews = [] } = await chrome.storage.local.get(['user','reviews']);
       return user && record.account?.toLowerCase() === user.name.toLowerCase() ? reviews.filter(r=>r.userId===user.id) : [];
+    }
+    case 'reviewContext': {
+      const generation = authGeneration;
+      const {Viewer:user} = await api('query { Viewer { id name mediaListOptions { scoreFormat } } }');
+      const {reviews=[]} = await chrome.storage.local.get('reviews');
+      const review = reviews.find(r=>r.id===message.reviewId && r.userId===user.id);
+      const check = () => {
+        if (generation !== authGeneration || record.account?.toLowerCase() !== user.name.toLowerCase() || reviewOwners.get(message.reviewId) !== port)
+          throw new Error('Review closed or AniList account changed. Reopen the review to retry.');
+      };
+      check();
+      if (!review) throw new Error('This review is no longer pending.');
+      const scoring = scoreOptions(user.mediaListOptions?.scoreFormat);
+      const history = await reviewHistory(review.mediaId,async id=>{
+        check();
+        const {Media} = await api('query($id:Int!){Media(id:$id,type:ANIME){id title{romaji english} mediaListEntry{score notes} relations{edges{relationType node{id type}}}}}',{id});
+        check();return Media;
+      });
+      return {scoring,...history};
     }
     case 'claimReview': case 'saveReview': case 'dismissReview': {
       const task = syncChain.then(async () => {
@@ -169,14 +201,27 @@ async function handle(message, port) {
         if (message.type === 'claimReview') return {claimed:true,...review};
         if (message.type === 'saveReview') {
           const comment = typeof message.comment === 'string' ? message.comment.trim() : '';
-          if (!comment || comment.length > 10000) throw new Error('Enter a comment of up to 10,000 characters.');
+          const hasScore = message.score !== undefined && message.score !== null;
+          if ((!comment && !hasScore) || comment.length > 10000) throw new Error('Enter a score or a comment of up to 10,000 characters.');
+          let score;
+          if (hasScore) {
+            const {Viewer} = await api('query { Viewer { id name mediaListOptions { scoreFormat } } }',{},undefined,true);
+            if (Viewer.id !== user.id || message.scoreFormat !== Viewer.mediaListOptions?.scoreFormat) throw new Error('AniList scoring settings changed. Reopen the review to reload them.');
+            score = validateScore(message.score,Viewer.mediaListOptions.scoreFormat);
+          }
           const media = await getMedia(review.mediaId,true);
           if (!media?.mediaListEntry) throw new Error('This anime is no longer in your AniList list.');
           if (generation !== authGeneration || !(await accountMatches(user))) throw new Error('AniList account changed. Reconnect the original account before saving notes.');
           const previous = media.mediaListEntry.notes || '';
           // Retry after a lost response must not append the same comment twice.
           const notes = previous === comment || previous.endsWith('\n\n'+comment) ? previous : [previous,comment].filter(Boolean).join('\n\n');
-          if (notes !== previous) await api('mutation($mediaId:Int!,$notes:String!){SaveMediaListEntry(mediaId:$mediaId,notes:$notes){id}}',{mediaId:review.mediaId,notes});
+          const variables = {mediaId:review.mediaId};
+          if (notes !== previous) variables.notes = notes;
+          if (hasScore) variables.score = score;
+          if (Object.keys(variables).length > 1) {
+            const args = [variables.notes !== undefined ? '$notes:String!, notes:$notes' : '', hasScore ? '$score:Float!, score:$score' : ''].filter(Boolean).map(s=>s.split(', '));
+            await api(`mutation($mediaId:Int!,${args.map(a=>a[0]).join(',')}){SaveMediaListEntry(mediaId:$mediaId,${args.map(a=>a[1]).join(',')}){id}}`,variables);
+          }
         }
         await chrome.storage.local.set({reviews:reviews.filter(r=>r.id!==review.id)});
         reviewOwners.delete(review.id); broadcast('reviewDismissed',{id:review.id}); return {};
@@ -196,20 +241,28 @@ async function handle(message, port) {
     }
     case 'autoSelect': await chrome.storage.local.set({ autoSelect: !!message.value }); return {};
     case 'settings': await chrome.runtime.openOptionsPage(); return {};
-    case 'search': case 'files': case 'play': {
+    case 'resume': case 'search': case 'files': case 'play': {
       const media = await getMedia(message.mediaId);
       const { Viewer: user } = await api('query { Viewer { id name } }');
       if (!record.account || user.name.toLowerCase() !== record.account.toLowerCase()) throw new Error('AniList account mismatch. Reconnect the correct account.');
       const episode = message.episode ?? nextEpisode(media);
       const available = availability(media);
       if (!Number.isInteger(episode) || episode < 1 || episode > 100000 || (available !== null && episode > available)) throw new Error('This episode has not aired yet.');
-      return rpc(message.type, { media: helperMedia(media), episode, userId: user.id, rewatch: !!message.rewatch && media.mediaListEntry?.status === 'COMPLETED', repeatBase: media.mediaListEntry?.repeat || 0,
-        query: message.query || '', torrent: message.torrent || null, fileIndex: message.fileIndex ?? null });
+      const result=await rpc(message.type, { media: helperMedia(media), episode, userId: user.id, rewatch: !!message.rewatch && media.mediaListEntry?.status === 'COMPLETED', repeatBase: media.mediaListEntry?.repeat || 0,
+        startOver: message.startOver === true, query: message.query || '', torrent: message.torrent || null, fileIndex: message.fileIndex ?? null });
+      if(message.type==='play' && message.notification===true && result?.sessionId){
+        const task=syncChain.then(async()=>{
+          const {notificationLaunches={}}=await chrome.storage.local.get('notificationLaunches');
+          notificationLaunches[result.sessionId]={userId:user.id,mediaId:media.id,episode};
+          await chrome.storage.local.set({notificationLaunches:Object.fromEntries(Object.entries(notificationLaunches).slice(-1000))});
+        });syncChain=task.catch(()=>{});await task;
+      }
+      return result;
     }
     case 'stop': return rpc('stop', { sessionId: message.sessionId });
     case 'cancel': return rpc('cancel');
     case 'reconnect': await recover(); return {};
-    default: throw new Error('Unknown request');
+    default: throw Object.assign(new Error(`Unsupported extension request: ${String(message.type)}. Reload Ani-QW and refresh AniList.`), {code:'unsupported_request'});
   }
 }
 

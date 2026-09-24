@@ -223,7 +223,7 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 	ipc := filepath.Join(w.p.Runtime, "mpv-"+sid[:8]+".sock")
 	defer os.Remove(ipc)
 	streamURL := "http://" + l.Addr().String() + "/" + token + "/video"
-	start := readResume(w.p.State, r)
+	start := playbackStart(w.p.State, r)
 	title := r.Media.Title + fmt.Sprintf(" · Episode %d", r.Episode)
 	cmd := exec.CommandContext(ctx, "mpv", "--force-media-title="+title, fmt.Sprintf("--start=%.3f", start), "--input-ipc-server="+ipc, "--force-window=yes", "--idle=no", "--keep-open=no", "--title="+r.Media.Title+fmt.Sprintf(" · Episode %d", r.Episode), "--", streamURL)
 	cmd.Stderr = os.Stderr

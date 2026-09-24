@@ -5,6 +5,8 @@
   let status = { phase: 'idle' }, activeRequest = null, modal = null, account = '', generation = 0;
   let invalidated = false;
   const waiting = new Map();
+  const notificationReads=new Set();
+  const shortcutModels=new Map();
   const reviews = new Map(); let reviewDialog = null, claimingReview = false;
   let panelPosition = null, dismissed = false, drag = null, launchMediaId = null, closeTimer = null, stoppingSession = null;
   let route = location.href, watchedSession = null, nextPlayable = null, listEditorOpen = false, refreshTimer = null;
@@ -15,12 +17,12 @@
   });
   const css = `
     :host{--bg:rgb(var(--color-foreground,250,250,250));--text:rgb(var(--color-text,92,114,138));--blue:rgb(var(--color-blue,61,180,242));--soft:rgb(var(--color-background,237,241,245));font-family:inherit;font-size:14px;line-height:1.5;color:var(--text);text-align:left;scrollbar-color:var(--text) var(--bg)}
-    *{box-sizing:border-box;scrollbar-width:thin}::-webkit-scrollbar{width:9px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#7b8ba055;border-radius:9px}button,input{font:inherit}button{cursor:pointer;border:0;color:inherit;background:transparent;border-radius:4px}button:disabled{cursor:default;opacity:.45}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}button:hover:not(:disabled){filter:brightness(1.08)}
+    *{box-sizing:border-box;scrollbar-width:thin}::-webkit-scrollbar{width:9px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#7b8ba055;border-radius:9px}button,input,select{font:inherit}button{cursor:pointer;border:0;color:inherit;background:transparent;border-radius:4px}button:disabled{cursor:default;opacity:.45}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}button:hover:not(:disabled){filter:brightness(1.08)}
     .split{display:flex;width:100%;height:35px;border-radius:3px;overflow:hidden;background:var(--blue);color:white}.split button{color:white}.play{flex:1}.arrow{width:34px;border-radius:0;background:rgba(255,255,255,.14)}.chevron{font-family:element-icons;font-size:14px;font-style:normal}.chevron.fallback{display:inline-block;font-size:0;width:7px;height:7px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:translateY(-2px) rotate(45deg)}.wrap{position:relative}.menu{animation:menu-in .16s ease-out;transform-origin:top left;position:absolute;top:43px;left:0;width:270px;background:var(--bg);padding:14px;z-index:200;box-shadow:0 6px 24px #0003;border-radius:6px}.menu[hidden]{display:none}label{display:flex;align-items:center;gap:10px}input[type=checkbox]{accent-color:var(--blue);width:16px;height:16px}.episodes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:220px;overflow:auto;margin:12px 0}.episode{background:var(--soft);padding:7px}.episode.current{background:var(--blue);color:white}.episode.seen{background:rgba(75,180,140,.18);color:#59b99a;box-shadow:inset 0 0 0 1px #59b99a40}.episode:disabled{cursor:not-allowed;background:transparent;color:var(--text);opacity:.35;text-decoration:line-through;border:1px dashed #8884}.pager{display:block;width:100%;padding:8px;background:var(--soft);color:var(--blue)}.split.starting{background:#419d89}.split.streaming{background:#8465bb}.split.starting .play:disabled,.split.streaming .play:disabled{opacity:1}.muted{font-size:12px;opacity:.75}.note{font-size:12px;margin:8px 0;overflow-wrap:anywhere}.note:empty{display:none}.link{color:var(--blue);padding:0}.row{display:flex;gap:10px;align-items:center}.row input{min-width:0;flex:1}.primary{background:var(--blue);color:white;padding:9px 16px}.secondary{background:var(--soft);padding:9px 14px}input[type=text],input[type=number]{border:1px solid #8883;background:var(--soft);color:var(--text);border-radius:4px;padding:9px;width:100%}h2{font-size:20px;margin:0;font-weight:600}h3{font-size:14px;margin:12px 0}p{margin:8px 0}
-    .arrow[hidden]{display:none}.notice{padding:12px;border-radius:7px;background:rgba(61,180,242,.12);border-left:3px solid var(--blue);margin:0 0 12px;overflow-wrap:anywhere}.notice strong{display:block;font-size:14px}.notice span:empty{display:none}.split.unavailable{background:var(--soft);color:var(--text);border:1px solid #8883}.split.unavailable .play{color:var(--text);opacity:1}.note-input{display:block;width:100%;min-height:120px;margin:14px 0;padding:12px;background:var(--soft);color:var(--text);border:1px solid #8883;border-radius:5px;font:inherit}.playback-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.playback-actions button:disabled{background:var(--soft);color:var(--text)}.notification-play.starting{background:#419d89}.notification-play.streaming{background:#8465bb}.notification-play{white-space:nowrap}.notice span{display:block;font-size:12px;margin-top:3px}.notice[data-tone=playing]{background:rgba(132,101,187,.16);border-color:#9875d2}.notice[data-tone=error]{background:rgba(228,105,121,.14);border-color:#e46979}.notice[data-tone=closed]{background:rgba(75,180,140,.14);border-color:#59b99a}.panel .error,.panel .sync{padding:11px 12px;border-radius:6px;border-left:3px solid currentColor;background:rgba(228,105,121,.12);font-size:12px}.panel .sync{color:var(--blue);background:rgba(61,180,242,.12)}.panel .sync[data-tone=success]{color:#59b99a;background:rgba(75,180,140,.14)}.panel .sync[data-tone=retry]{color:#c5994e;background:rgba(197,153,78,.12)}.panel .sync:empty{display:none}.stats span{padding:7px 8px;background:var(--soft);border-radius:5px}.panel .row{flex-wrap:wrap}
+    .arrow[hidden]{display:none}.notice{padding:12px;border-radius:7px;background:rgba(61,180,242,.12);border-left:3px solid var(--blue);margin:0 0 12px;overflow-wrap:anywhere}.notice strong{display:block;font-size:14px}.notice span:empty{display:none}.split.unavailable{background:var(--soft);color:var(--text);border:1px solid #8883}.split.unavailable .play{color:var(--text);opacity:1}.note-input{display:block;width:100%;min-height:120px;margin:14px 0;padding:12px;background:var(--soft);color:var(--text);border:1px solid #8883;border-radius:5px;font:inherit}.review-score{margin:16px 0}.review-score input,.review-score select{width:145px;padding:9px;background:var(--soft);color:var(--text);border:1px solid #8883;border-radius:4px}.review-history{max-height:240px;overflow:auto;margin:12px 0}.review-prequel{padding:12px;background:var(--soft);border-radius:6px;margin:8px 0}.review-prequel a{color:var(--blue);text-decoration:none}.prequel-note{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}.playback-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.playback-actions button:disabled{background:var(--soft);color:var(--text)}.notification-play.unread:not(.starting):not(.streaming){background:rgba(61,180,242,.16);color:var(--blue)}.notification-play.starting{background:#419d89}.notification-play.streaming{background:#8465bb}.notification-play{white-space:nowrap}.notice span{display:block;font-size:12px;margin-top:3px}.notice[data-tone=playing]{background:rgba(132,101,187,.16);border-color:#9875d2}.notice[data-tone=error]{background:rgba(228,105,121,.14);border-color:#e46979}.notice[data-tone=closed]{background:rgba(75,180,140,.14);border-color:#59b99a}.panel .error,.panel .sync{padding:11px 12px;border-radius:6px;border-left:3px solid currentColor;background:rgba(228,105,121,.12);font-size:12px}.panel .sync{color:var(--blue);background:rgba(61,180,242,.12)}.panel .sync[data-tone=success]{color:#59b99a;background:rgba(75,180,140,.14)}.panel .sync[data-tone=retry]{color:#c5994e;background:rgba(197,153,78,.12)}.panel .sync:empty{display:none}.stats span{padding:7px 8px;background:var(--soft);border-radius:5px}.panel .row{flex-wrap:wrap}
     @keyframes menu-in{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.menu{animation:none}}
     dialog{pointer-events:auto;border:0;border-radius:8px;background:var(--bg);color:var(--text);width:min(820px,calc(100vw - 32px));max-height:85vh;padding:26px;box-shadow:0 15px 80px #0006;font:inherit}dialog::backdrop{background:#07101bbb;backdrop-filter:blur(3px)}.heading{display:flex;justify-content:space-between;gap:16px;margin-bottom:14px}.close{font-size:22px;line-height:1;padding:4px 8px}.results{max-height:50vh;overflow:auto;margin-top:16px}.release{display:block;text-align:left;width:100%;padding:14px 10px;border-top:1px solid #8882;border-radius:0}.release:hover{background:var(--soft)}.release-name{display:block;overflow-wrap:anywhere;font-weight:600}.release-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;margin-top:5px;opacity:.8}.badge{color:var(--blue)}.error{color:#e46979;overflow-wrap:anywhere}.error:empty{display:none}
-    .panel{pointer-events:auto;position:fixed;right:max(18px,calc((100vw - 1320px)/2));top:var(--aniqw-top,75px);width:min(410px,calc(100vw - 36px));z-index:990;background:var(--bg);border-radius:10px;box-shadow:0 8px 32px #0004;border:1px solid #8882;border-top:3px solid var(--blue)}.panel[hidden]{display:none}summary{display:flex;align-items:center;gap:8px;padding:12px;cursor:pointer;font-weight:600;overflow-wrap:anywhere;list-style:none}summary::-webkit-details-marker{display:none}.panel-title{flex:1;min-width:0;font-size:13px}.move{cursor:grab;touch-action:none;padding:5px;opacity:.6;font-size:19px}.move:active{cursor:grabbing}.dismiss{font-size:20px;padding:2px 6px;opacity:.7}.restore{pointer-events:auto;position:fixed;right:18px;bottom:18px;background:var(--bg);color:var(--blue);border:1px solid #8883;box-shadow:0 4px 18px #0003;padding:10px 16px}.restore[hidden]{display:none}.body{max-height:calc(100vh - 160px);overflow:auto}.body{padding:0 16px 16px}.filename{display:block;width:100%;text-align:left;padding:8px;background:var(--soft);border-radius:5px;font-size:12px;opacity:.85;overflow-wrap:anywhere;max-height:55px;overflow:auto}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin:8px 0 14px}.sync{font-size:12px;overflow-wrap:anywhere}.panel .row{justify-content:space-between}
+    .panel{pointer-events:auto;position:fixed;right:max(18px,calc((100vw - 1320px)/2));top:var(--aniqw-top,75px);width:min(410px,calc(100vw - 36px));z-index:990;background:var(--bg);border-radius:10px;box-shadow:0 8px 32px #0004;border:1px solid #8882;border-top:3px solid var(--blue)}.panel[hidden]{display:none}summary{display:flex;align-items:center;gap:8px;padding:12px;cursor:pointer;font-weight:600;overflow-wrap:anywhere;list-style:none}summary::-webkit-details-marker{display:none}.panel-title{flex:1;min-width:0;font-size:13px}.move{cursor:grab;touch-action:none;padding:5px;opacity:.6;font-size:19px}.move:active{cursor:grabbing}.dismiss{font-size:20px;padding:2px 6px;opacity:.7}.restore{pointer-events:auto;position:fixed;right:18px;bottom:18px;background:var(--bg);color:var(--blue);border:1px solid #8883;box-shadow:0 4px 18px #0003;padding:10px 16px}.restore[hidden]{display:none}.body{max-height:calc(100vh - 160px);overflow:auto}.body{padding:0 16px 16px}.filename{display:block;width:100%;text-align:left;padding:8px;background:var(--soft);border-radius:5px;font-size:12px;color:var(--blue);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;border:1px solid #3db4f240;overflow-wrap:anywhere;max-height:55px;overflow:auto}.filename:hover:not(:disabled),.filename:focus-visible{border-color:var(--blue);text-decoration-style:solid;background:rgba(61,180,242,.1)}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin:8px 0 14px}.sync{font-size:12px;overflow-wrap:anywhere}.panel .row{justify-content:space-between}
   `;
   const el = (tag, attrs = {}, text) => {
     const e = document.createElement(tag);
@@ -75,7 +77,7 @@
   const replay = el('button', { class: 'primary', disabled: '', onclick: async () => {
     if (!activeRequest || status.phase !== 'idle' || launchMediaId !== null) return;
     launchMediaId = activeRequest.mediaId; replay.disabled = true; cancelCountdown(); updatePlayButton();
-    try { setDismissed(false); await send('play', activeRequest); } catch(e) { warning.textContent = e.message; }
+    try { setDismissed(false); await playRequest(activeRequest); } catch(e) { warning.textContent = e.message; }
     finally { launchMediaId = null; updatePlaybackActions(); updatePlayButton(); }
   } }, 'Replay');
   const nextEpisodeButton = el('button', { class: 'primary', disabled: '', onclick: async () => {
@@ -86,7 +88,7 @@
       const fresh = await send('media', { mediaId: request.mediaId, fresh: true });
       if (!Number.isFinite(fresh.available) || request.episode > fresh.available) { nextPlayable=null; return; }
       activeRequest = request;
-      if (fresh.autoSelect) { setDismissed(false); await send('play', request); }
+      if (fresh.autoSelect) { setDismissed(false); await playRequest(request); }
       else chooser(request);
     } catch (e) { warning.textContent = e.message; }
     finally { launchMediaId = null; updatePlaybackActions(); updatePlayButton(); }
@@ -121,6 +123,7 @@
       }
       if (message.event === 'review' && message.data) { reviews.set(message.data.id,message.data); maybeReview(); }
       if (message.event === 'reviewDismissed') { reviews.delete(message.data.id); if(reviewDialog?.dataset.reviewId===message.data.id) reviewDialog.close(); }
+      if(message.event==='notificationRead' && message.data.account?.toLowerCase()===account.toLowerCase()){notificationReads.add(message.data.key);notificationButtons();}
       if (message.event === 'state') renderState(message.data);
       if (message.event === 'connection') { if (control) control.querySelector('.note').textContent = message.data.error; }
       if (message.event === 'sync') { sync.dataset.tone = 'retry'; sync.textContent = message.data.error; panel.open = true; if (!dismissed) panel.hidden = false; }
@@ -133,6 +136,7 @@
           updatePlaybackActions();
           if (status.phase === 'idle' && !dismissed) startCountdown(nextPlayable ? 10 : 5);
         }
+        shortcutModels.set(message.data.mediaId,{...shortcutModels.get(message.data.mediaId),at:0});for(const item of shortcuts.values())if(item.id===message.data.mediaId)loadShortcut(item);
         if (message.data.mediaId === mediaId) loadMedia(true);
       }
       if (message.event === 'failure') {
@@ -190,7 +194,7 @@
       watchedSession = null; nextPlayable = null;
       if (s.media?.id) findNext(s);
     }
-    status = s; updatePlayButton(); notificationButtons();
+    status = s; updatePlayButton(); notificationButtons(); updateShortcuts();
     if (s.phase === 'idle' && !s.sessionId) return;
     panel.hidden = dismissed;
     panelTitle.textContent = `${s.media?.title || 'Ani-QW'}${s.episode ? ` · Episode ${s.episode}` : ''}`;
@@ -207,11 +211,11 @@
     if (previous.phase !== s.phase) panel.open = true;
     filename.textContent = s.filename || 'Finding your episode…';
     stats.replaceChildren(...[
-      `${(s.percent || 0).toFixed(1)}% · ${bytes(s.downloaded || 0)} / ${bytes(s.size || 0)}`,
-      `↓ ${rate(s.downloadSpeed || 0)}${s.seeding === false ? "" : `  ↑ ${rate(s.uploadSpeed || 0)}`}`,
-      `${s.seeds || 0} seeds · ${s.peers || 0} peers`,
-      s.duration ? `${Math.floor(s.position / 60)} / ${Math.floor(s.duration / 60)} min` : 'Waiting for video'
-    ].map(text => el('span', {}, text)));
+      [`${(s.percent || 0).toFixed(1)}% · ${bytes(s.downloaded || 0)} / ${bytes(s.size || 0)}`, 'Downloaded portion of the selected video and its total size'],
+      [`↓ ${rate(s.downloadSpeed || 0)}${s.seeding === false ? "" : `  ↑ ${rate(s.uploadSpeed || 0)}`}`, s.seeding === false ? 'Current download speed. Seeding is disabled.' : 'Current download and upload speeds'],
+      [s.duration ? `${Math.floor((s.position || 0) / 60)} / ${Math.floor(s.duration / 60)} min watched` : 'Waiting for video', 'Playback position and total duration, including seeking'],
+      [`${s.seeds || 0} seeds · ${s.peers || 0} peers`, 'Connected seeds with the full torrent and connected peers']
+    ].map(([text,title]) => el('span', {title}, text)));
     warning.textContent = s.warning || '';
     stop.disabled = s.phase === 'idle' || s.phase === 'stopping'; stop.textContent = s.phase === 'stopping' ? 'Stopping…' : 'Stop';
     stop.hidden = s.phase === 'idle';
@@ -224,7 +228,7 @@
     }
   }
   async function maybeReview() {
-    if (claimingReview || reviewDialog || modal || status.phase !== 'idle' || document.visibilityState !== 'visible') return;
+    if (claimingReview || reviewDialog || modal || resumeDialog || status.phase !== 'idle' || document.visibilityState !== 'visible') return;
     const review = reviews.values().next().value;
     if (!review) return;
     claimingReview = true;
@@ -240,18 +244,49 @@
       const error=el('p',{class:'error',role:'status'});
       const actions=el('div',{class:'row'});
       const skip=el('button',{class:'secondary'},'Skip');
-      const save=el('button',{class:'primary'},'Save to AniList Notes');
-      actions.append(skip,save);dialog.append(heading,description,comment,error,actions);overlay.append(dialog);
+      const save=el('button',{class:'primary'},'Save to AniList');
+      const scoreLabel=el('label',{class:'review-score'},'Score');
+      let score=el('input',{type:'number','aria-label':'Completion score',disabled:''}), scoring;
+      scoreLabel.append(score);
+      const history=el('section',{class:'review-history','aria-label':'Prequel scores and notes'});
+      const contextStatus=el('p',{class:'muted',role:'status'});
+      const retry=el('button',{class:'secondary',hidden:''},'Retry loading scores and prequels');
+      actions.append(skip,save);dialog.append(heading,description,scoreLabel,comment,history,contextStatus,retry,error,actions);overlay.append(dialog);
+      async function loadContext() {
+        retry.hidden=true;contextStatus.textContent='Loading your score and prequels…';
+        try {
+          const context=await send('reviewContext',{reviewId:review.id});
+          if (!dialog.isConnected) return;
+          scoring=context.scoring;
+          const input=scoring.choices?el('select',{'aria-label':'Completion score'}):el('input',{type:'number',min:'0',max:scoring.max,step:scoring.step,placeholder:'Optional','aria-label':'Completion score'});
+          if(scoring.choices){input.append(el('option',{value:''},'Unchanged'));scoring.choices.forEach((label,value)=>input.append(el('option',{value},label)));}
+          input.value=context.current?.mediaListEntry?.score || '';
+          scoreLabel.firstChild.textContent=scoring.label;score.replaceWith(input);score=input;
+          history.replaceChildren();
+          if(context.prequels.length)history.append(el('h3',{},'Your prequel scores and notes'));
+          for(const media of context.prequels){
+            const card=el('article',{class:'review-prequel'});
+            const title=el('a',{href:`https://anilist.co/anime/${media.id}/`,target:'_blank',rel:'noopener'},media.title.english || media.title.romaji);
+            const value=media.mediaListEntry?.score;
+            card.append(title,el('p',{class:'muted'},value ? `Score: ${scoring.choices?scoring.choices[value]:`${value} / ${scoring.max}`}`:'No score'),el('p',{class:'prequel-note'},media.mediaListEntry?.notes || 'No notes'));
+            history.append(card);
+          }
+          contextStatus.textContent='';
+        }catch(e){if(dialog.isConnected){contextStatus.textContent=e.message;retry.hidden=false;}}
+      }
+      retry.onclick=loadContext;
       async function finish(type) {
         save.disabled=skip.disabled=true;
-        try { await send(type,{reviewId:review.id,comment:comment.value}); reviews.delete(review.id); dialog.close(); }
+        try {
+          if(type==='saveReview' && score.value!=='' && !score.checkValidity()) throw new Error('Enter a valid score for your AniList scale.');
+          await send(type,{reviewId:review.id,comment:comment.value,...(scoring && score.value!==''?{score:Number(score.value),scoreFormat:scoring.format}:{})}); reviews.delete(review.id); dialog.close(); }
         catch(e) {error.textContent=e.message;}
         finally {save.disabled=skip.disabled=false;}
       }
       skip.onclick=()=>finish('dismissReview');save.onclick=()=>finish('saveReview');
       dialog.addEventListener('cancel',e=>{e.preventDefault();finish('dismissReview');});
       dialog.addEventListener('close',()=>{dialog.remove();reviewDialog=null;maybeReview();});
-      dialog.showModal();comment.focus();
+      dialog.showModal();comment.focus();loadContext();
     } catch(e) { warning.textContent=e.message; }
     finally {claimingReview=false;}
   }
@@ -276,6 +311,40 @@
       model = data; renderControl();
     } catch (e) { if (g === generation && control) { showError(e); const b = control.querySelector('.play'); b.disabled = false; const authError = /connect|authoriz|account/i.test(e.message); b.textContent = authError ? 'Connect AniList' : 'Retry loading playback'; b.onclick = /refresh this AniList page/i.test(e.message) ? () => location.reload() : authError ? () => send('settings').catch(showError) : loadMedia; if (/refresh this AniList page/i.test(e.message)) b.textContent = 'Refresh AniList'; } }
   }
+  let resumeDialog=null;
+  async function playRequest(request) {
+    const playbackRoute=location.href;
+    let saved;
+    try { saved=await send('resume',request); }
+    catch(error) {
+      // An installed update can coexist with an older background/worker until reloaded.
+      // Older helpers already resume automatically; omit the new choice in that case.
+      if (error.code !== 'unsupported_request' && !/^(unknown request|unknown command)$/i.test(error.message)) throw error;
+      saved={position:0};
+    }
+    if(location.href!==playbackRoute)return false;
+    let startOver=false;
+    if(Number.isFinite(saved.position) && saved.position>=1){
+      const choice=await new Promise(resolve=>{
+        const dialog=el('dialog',{'aria-label':'Resume episode'});resumeDialog=dialog;
+        const stamp=`${Math.floor(saved.position/60)}:${String(Math.floor(saved.position%60)).padStart(2,'0')}`;
+        dialog.append(el('h2',{},`Episode ${request.episode}`));
+        const actions=el('div',{class:'row',style:'margin-top:18px'});
+        let result=null;
+        const resume=el('button',{class:'primary'},`Resume at ${stamp}`);
+        const restart=el('button',{class:'secondary'},'Start over');
+        const cancel=el('button',{class:'link'},'Cancel');
+        resume.onclick=()=>{result=false;dialog.close();};restart.onclick=()=>{result=true;dialog.close();};cancel.onclick=()=>dialog.close();
+        actions.append(resume,restart,cancel);dialog.append(actions);overlay.append(dialog);
+        dialog.addEventListener('close',()=>{dialog.remove();resumeDialog=null;resolve(result);});
+        dialog.showModal();resume.focus();
+      });
+      if(choice===null)return false;
+      startOver=choice;
+    }
+    if(location.href!==playbackRoute)return false;
+    await send('play',{...request,startOver});return true;
+  }
   async function begin(episode) {
     if (launchMediaId !== null || (status.media?.id === mediaId && status.phase !== 'idle' && (episode === undefined || episode === status.episode || ['searching','metadata','verifying','buffering','stopping'].includes(status.phase)))) return;
     launchMediaId = mediaId; updatePlayButton();
@@ -289,7 +358,7 @@
       const request = { mediaId: requestedMedia, episode: episode ?? fresh.next, rewatch: episode === undefined && fresh.media.mediaListEntry?.status === 'COMPLETED' };
       if (!request.episode) return;
       activeRequest = request;
-      if (fresh.autoSelect) { setDismissed(false); panel.open = true; warning.textContent = ''; await send('play', request); }
+      if (fresh.autoSelect) { setDismissed(false); panel.open = true; warning.textContent = ''; await playRequest(request); }
       else chooser(request);
     } catch (e) { showError(e); } finally { launchMediaId = null; updatePlayButton(); }
   }
@@ -366,7 +435,7 @@
               info.textContent = 'Choose the file to play. The likely episode is highlighted.';
               for (const file of files) {
                 const button = el('button', { class: 'release' }); button.append(el('span', { class: 'release-name' }, file.name), el('span', { class: file.suggested ? 'badge' : 'muted' }, `${file.suggested ? 'Suggested episode · ' : ''}${bytes(file.size)}`));
-                button.onclick = async () => { button.disabled = true; try { activeRequest = request; setDismissed(false); panel.open = true; await send('play', { ...request, torrent: item, fileIndex: file.index }); dialog.close(); } catch (e) { info.textContent = e.message; info.className = 'error'; button.disabled = false; } }; results.append(button);
+                button.onclick = async () => { button.disabled = true; try { activeRequest = request; setDismissed(false); panel.open = true; if (await playRequest({ ...request, torrent: item, fileIndex: file.index })) dialog.close(); else button.disabled = false; } catch (e) { info.textContent = e.message; info.className = 'error'; button.disabled = false; } }; results.append(button);
               }
             } catch (e) { if (dialog.open && rev === revision) { info.textContent = e.message; info.className = 'error'; } }
           }; results.append(row);
@@ -384,14 +453,16 @@
     launchMediaId=id; launchingNotification=`${id}:${episode}`; notificationButtons();
     try {
       const fresh=await send('media',{mediaId:id,fresh:true});
-      const request={mediaId:id,episode};
+      const request={mediaId:id,episode,notification:true};
       activeRequest=request;
-      if(fresh.autoSelect){setDismissed(false);panel.open=true;await send('play',request);}
+      if(fresh.autoSelect){setDismissed(false);panel.open=true;await playRequest(request);}
       else chooser(request);
     } catch(e) {showError(e);}
     finally {launchMediaId=null;launchingNotification=null;notificationButtons();}
   }
-  function updateNotification(button,id,episode) {
+  function updateNotification(button,id,episode,row) {
+    if(notificationReads.has(`${id}:${episode}`))row?.classList.remove('unread');
+    button.classList.toggle('unread',!!row?.classList.contains('unread'));
     const active=status.media?.id===id && status.episode===episode && status.phase!=='idle';
     const streaming=active && ['playing','paused'].includes(status.phase);
     const starting=launchingNotification===`${id}:${episode}` || (active && !streaming);
@@ -400,29 +471,145 @@
     button.classList.toggle('starting',starting);button.classList.toggle('streaming',streaming);
     button.title=streaming?'Show or hide playback details':'';
   }
+  const notificationLayout = el('style', {}, `
+    .notifications-feed.aniqw-with-play{grid-template-columns:var(--aniqw-filter-width,180px) minmax(0,1fr) 145px;width:calc(100% - 48px);max-width:1480px;padding-left:24px;padding-right:24px;column-gap:24px;margin-left:auto;margin-right:auto}
+    .aniqw-with-play > .filters{grid-column:1;grid-row:1}
+    .aniqw-with-play > .notifications{grid-column:2;grid-row:1;min-width:0}
+    .aniqw-play-column{grid-column:3;grid-row:1;position:relative;align-self:stretch;min-width:0}
+    .aniqw-play-column > .aniqw-notification{position:absolute;left:0;transform:translateY(-50%)}
+    @media(max-width:760px){
+      .notifications-feed.aniqw-with-play{grid-template-columns:minmax(0,1fr) 130px;column-gap:12px}
+      .aniqw-with-play > .filters{grid-column:1 / -1;grid-row:1}
+      .aniqw-with-play > .notifications{grid-column:1;grid-row:2}
+      .aniqw-play-column{grid-column:2;grid-row:2}
+    }
+  `);
+  document.head.append(notificationLayout);
+  let notificationFeed=null, notificationColumn=null;
+  const notificationActions=new Map();
+  function alignNotificationButtons() {
+    if(!notificationColumn?.isConnected)return;
+    const top=notificationColumn.getBoundingClientRect().top;
+    for(const [row,host] of notificationActions){
+      if(!row.isConnected)continue;
+      const rect=row.getBoundingClientRect();
+      host.style.top=`${rect.top+rect.height/2-top}px`;
+    }
+  }
+  const notificationObserver=new ResizeObserver(alignNotificationButtons);
+  window.addEventListener('resize',alignNotificationButtons);
+  function resetNotificationColumn() {
+    notificationObserver.disconnect();notificationActions.clear();notificationColumn?.remove();
+    notificationFeed?.classList.remove('aniqw-with-play');
+    notificationFeed?.style.removeProperty('--aniqw-filter-width');
+    notificationFeed=notificationColumn=null;
+  }
   function notificationButtons() {
-    if (!/^\/notifications\/?$/.test(location.pathname)) return;
-    for (const row of document.querySelectorAll('.notification.hasMedia')) {
+    const feed=/^\/notifications\/?$/.test(location.pathname)?document.querySelector('.notifications-feed'):null;
+    if(feed!==notificationFeed)resetNotificationColumn();
+    if(!feed)return;
+    const list=feed.querySelector(':scope > .notifications');
+    if(!list)return;
+    if(!notificationColumn){
+      notificationFeed=feed;
+      const width=feed.querySelector(':scope > .filters')?.getBoundingClientRect().width;
+      if(width && innerWidth>760)feed.style.setProperty('--aniqw-filter-width',`${width}px`);
+      notificationColumn=el('div',{class:'aniqw-play-column','aria-label':'Episode playback'});
+      feed.append(notificationColumn);feed.classList.add('aniqw-with-play');
+      notificationObserver.observe(list);
+    }
+    const rows=new Set(list.querySelectorAll('.notification.hasMedia'));
+    for(const [row,host] of notificationActions){
+      if(!rows.has(row)){host.remove();notificationActions.delete(row);notificationObserver.unobserve(row);}
+    }
+    for (const row of rows) {
       const details=row.querySelector('.details > div');
       const link=details?.querySelector('a[href^="/anime/"]');
       const text=details?.textContent.replace(/\s+/g,' ').trim() || '';
       const match=text.match(/^Episode (\d+) of .+ aired\.$/);
       const id=Number(link?.getAttribute('href')?.match(/^\/anime\/(\d+)/)?.[1]);
-      let host=row.querySelector('.aniqw-notification');
+      let host=notificationActions.get(row);
       const key=id && match ? id+':'+match[1] : '';
-      if (host?.dataset.key===key) { updateNotification(host.shadowRoot.querySelector('button'),id,Number(match[1])); continue; }
-      host?.remove();
-      if (!key) {
-        if (row.dataset.aniqwColumns !== undefined) { row.style.gridTemplateColumns=row.dataset.aniqwColumns; delete row.dataset.aniqwColumns; }
-        continue;
-      }
-      host=el('div',{class:'aniqw-notification',style:'display:flex;justify-content:flex-end;margin-top:12px;position:relative;'});
-      host.dataset.key=key;
+      if (host?.dataset.key===key) { updateNotification(host.shadowRoot.querySelector('button'),id,Number(match[1]),row); continue; }
+      host?.remove();notificationActions.delete(row);notificationObserver.unobserve(row);
+      if (!key) continue;
+      host=el('div',{class:'aniqw-notification'});host.dataset.key=key;
       const r=root(host);
       const button=el('button',{class:'primary notification-play'},`Play episode ${match[1]}`);
       button.onclick=e=>{e.preventDefault();e.stopPropagation();if (status.media?.id===id && status.episode===Number(match[1]) && ['playing','paused'].includes(status.phase)) {cancelCountdown();setDismissed(!dismissed);panel.open=true;} else playNotification(id,Number(match[1]),button);};
-      r.append(button);row.querySelector('.details').append(host);updateNotification(button,id,Number(match[1]));
+      r.append(button);notificationColumn.append(host);notificationActions.set(row,host);
+      notificationObserver.observe(row);updateNotification(button,id,Number(match[1]),row);
     }
+    alignNotificationButtons();
+  }
+  const shortcutStyle=el('style',{},`
+    .list-preview [data-aniqw-home]:is(:hover,:focus-within){z-index:40}
+    .list-preview [data-aniqw-home] > .content{pointer-events:auto;visibility:hidden;height:auto !important;min-height:100%;padding:12px;box-shadow:0 6px 20px #0003}
+    .list-preview [data-aniqw-home]:is(:hover,:focus-within) > .content{visibility:visible;display:block;opacity:1;z-index:30}
+    .list-preview [data-aniqw-home] > .content .info{position:static !important;inset:auto !important;margin-top:8px}
+    .list-preview [data-aniqw-home] .plus-progress,.list-preview [data-aniqw-home] .image-overlay{display:none !important}
+    .list-preview [data-aniqw-home] .cover .image-text{opacity:1 !important}
+    .aniqw-home-play{display:block;width:100%;margin-top:10px;clear:both}
+  `);document.head.append(shortcutStyle);
+  const shortcuts=new Map();
+  function updateShortcuts(){
+    for(const {id,button} of shortcuts.values()){
+      const data=shortcutModels.get(id)?.data;
+      const active=status.media?.id===id && status.phase!=='idle';
+      const streaming=active && ['playing','paused'].includes(status.phase);
+      const starting=launchMediaId===id || (active && !streaming);
+      button.textContent=streaming?'Streaming':starting?'Starting…':data?(data.label || (data.next?`Play Episode ${data.next}`:'Not yet aired')):'Loading playback…';
+      button.disabled=!streaming && (starting || !data || !data.next);
+      button.classList.toggle('starting',starting && !streaming);button.classList.toggle('streaming',streaming);
+      button.title=streaming?'Show or hide playback details':'';
+    }
+  }
+  async function loadShortcut(item){
+    const cached=shortcutModels.get(item.id);
+    if(cached && Date.now()-cached.at<15000)return;
+    if(cached?.loading)return;
+    shortcutModels.set(item.id,{...cached,loading:true,at:Date.now()});
+    try{
+      const data=await send('media',{mediaId:item.id});
+      shortcutModels.set(item.id,{data,at:Date.now()});updateShortcuts();
+    }catch(e){shortcutModels.delete(item.id);item.button.textContent='Retry playback';item.button.disabled=false;item.button.title=e.message;}
+  }
+  async function playShortcut(id){
+    if(status.media?.id===id && ['playing','paused'].includes(status.phase)){cancelCountdown();setDismissed(!dismissed);panel.open=true;return;}
+    if(launchMediaId!==null)return;
+    launchMediaId=id;updateShortcuts();updatePlayButton();
+    try{
+      const fresh=await send('media',{mediaId:id,fresh:true});
+      if(!fresh.next)throw new Error('This anime has not aired yet.');
+      shortcutModels.set(id,{data:fresh,at:Date.now()});
+      const request={mediaId:id,episode:fresh.next,rewatch:fresh.media.mediaListEntry?.status==='COMPLETED'};
+      activeRequest=request;
+      if(fresh.autoSelect){setDismissed(false);panel.open=true;await playRequest(request);}else chooser(request);
+    }catch(e){showError(e);}finally{launchMediaId=null;updateShortcuts();updatePlayButton();}
+  }
+  function reconcileShortcuts(){
+    const targets=new Map();
+    if(/^\/home\/?$/.test(location.pathname)){
+      for(const card of document.querySelectorAll('.list-preview .media-preview-card')){
+        const a=card.querySelector('a.cover[href^="/anime/"]'),content=card.querySelector(':scope > .content');
+        const id=Number(a?.getAttribute('href').match(/^\/anime\/(\d+)/)?.[1]);
+        if(id && content)targets.set(card,{id,parent:content,home:true});
+      }
+    }
+    for(const [node,item] of shortcuts){
+      if(!targets.has(node)||targets.get(node).id!==item.id||!item.host.isConnected){item.host.remove();node.removeAttribute('data-aniqw-home');shortcuts.delete(node);}
+    }
+    for(const [node,target] of targets){
+      if(shortcuts.has(node))continue;
+      const host=el('span',{class:'aniqw-home-play'}),r=root(host);
+      const button=el('button',{class:'primary notification-play',style:'width:100%;white-space:normal'},'Play next episode');
+      button.onclick=e=>{e.preventDefault();e.stopPropagation();playShortcut(target.id);};
+      r.append(button);target.parent.append(host);if(target.home)node.setAttribute('data-aniqw-home','');
+      const item={id:target.id,host,button};shortcuts.set(node,item);
+      node.addEventListener('mouseenter',()=>loadShortcut(item));node.addEventListener('focusin',()=>loadShortcut(item));
+      if(node.matches(':hover,:focus-within'))loadShortcut(item);
+    }
+    updateShortcuts();
   }
   let spacedSidebar = null, sidebarPadding = '', appliedPadding = null;
   function clearCoverSpacing() {
@@ -443,8 +630,8 @@
   const coverObserver=new ResizeObserver(spaceCoverControls);
   window.addEventListener('resize',spaceCoverControls);
   function reconcile() {
-    notificationButtons();
-    if (route !== location.href) {route = location.href; cancelCountdown(); if(status.sessionId)setDismissed(true);}
+    notificationButtons();reconcileShortcuts();
+    if (route !== location.href) {route = location.href; resumeDialog?.close();cancelCountdown(); if(status.sessionId)setDismissed(true);}
     const editor = document.querySelector('.list-editor');
     const editorOpen = !!editor && editor.getBoundingClientRect().width > 0;
     if (listEditorOpen && !editorOpen && mediaId) {
@@ -455,7 +642,7 @@
     listEditorOpen = editorOpen;
     const id = Number(location.pathname.match(/^\/anime\/(\d+)(?:\/|$)/)?.[1]) || null;
     const nextAccount = accountName();
-    if (!invalidated && (nextAccount !== account || !port)) { account = nextAccount; send('hello', { account }).then(data => { panelPosition = data.panelPosition; positionPanel(); send('reviews').then(items=>{for(const item of items)reviews.set(item.id,item);maybeReview();}).catch(()=>{}); }).catch(() => {}); if (control) loadMedia(); }
+    if (!invalidated && (nextAccount !== account || !port)) { account = nextAccount; send('hello', { account }).then(data => { panelPosition = data.panelPosition;notificationReads.clear();for(const key of data.notificationReads||[])notificationReads.add(key);notificationButtons(); positionPanel(); send('reviews').then(items=>{for(const item of items)reviews.set(item.id,item);maybeReview();}).catch(()=>{}); }).catch(() => {}); if (control) loadMedia(); }
     if (id !== mediaId) { clearCoverSpacing();coverObserver.disconnect();mediaId = id; model = null; generation++; controlHost?.remove(); controlHost = control = null; modal?.close(); }
     if (id && !controlHost?.isConnected) {
       // Observed on AniList: the cover's action row contains both list and favourite controls.
