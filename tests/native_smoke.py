@@ -26,8 +26,9 @@ def request(process, command, **fields):
     process.stdin.flush()
     return receive(process, timeout=100 if command == 'search' else 15)
 
-for attempt in range(2):
-    process = subprocess.Popen([str(root / 'bin/ani-qw'), 'native'], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+for attempt in range(3):
+    arguments = [str(base / 'co.aniqw.player.json'), 'ani-qw@v4n00.github.io'] if attempt == 2 else ['native']
+    process = subprocess.Popen([str(root / 'bin/ani-qw'), *arguments], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     try:
         result = request(process, 'state')
         assert result['v'] == 1 and result['event'] == 'result', result
@@ -43,4 +44,5 @@ for attempt in range(2):
         process.wait(timeout=5)
         process.stdout.close()
     time.sleep(0.1)
+print('PASS Firefox manifest-path/add-on-ID invocation')
 print('PASS native EOF exits bridge; next bridge reconnects to worker')

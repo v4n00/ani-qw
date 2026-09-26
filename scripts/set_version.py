@@ -16,5 +16,8 @@ if count != 1:
     raise SystemExit("Could not find the helper version; no files changed.")
 data["version"] = version
 manifest.write_text(json.dumps(data, indent=2) + "\n")
+firefox = root / "extension/manifest.firefox.json"
+fdata = json.loads(firefox.read_text()); fdata["version"] = version
+firefox.write_text(json.dumps(fdata, indent=2) + "\n")
 helper.write_text(source)
 print(f"Extension and helper set to {version}. No commit, tag, or push performed.")

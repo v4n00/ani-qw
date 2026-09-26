@@ -255,8 +255,9 @@ func searchQueries(m Media, ep int, custom string) []string {
 	}
 	return out
 }
-func credible(r Release, m Media, ep int) bool {
-	if r.Seeders < 1 || r.Resolution != "1080p" {
+func credible(r Release, m Media, ep int) bool { return credibleQuality(r, m, ep, "1080p") }
+func credibleQuality(r Release, m Media, ep int, resolution string) bool {
+	if r.Seeders < 1 || (resolution != "auto" && r.Resolution != resolution) {
 		return false
 	}
 	rm := habari.Parse(r.Name)
@@ -351,4 +352,45 @@ func matchingFile(names []string, m Media, ep int) int {
 		return matches[0]
 	}
 	return -1
+}
+
+// Preferences only rank credible matches; they never relax title/season/episode checks.
+func preferredRelease(items []Release, m Media, ep int, prefs Settings) *Release {
+	resolution := prefs.Resolution
+	if resolution == "" {
+		resolution = "1080p"
+	}
+	candidates := []Release{}
+	for _, r := range items {
+		if credibleQuality(r, m, ep, resolution) {
+			candidates = append(candidates, r)
+		}
+	}
+	group := func(r Release) bool {
+		return prefs.PreferredGroup != "" && strings.EqualFold(habari.Parse(r.Name).ReleaseGroup, prefs.PreferredGroup)
+	}
+	quality := func(r Release) int {
+		switch r.Resolution {
+		case "1080p":
+			return 3
+		case "720p":
+			return 2
+		default:
+			return 1
+		}
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		a, b := candidates[i], candidates[j]
+		if group(a) != group(b) {
+			return group(a)
+		}
+		if resolution == "auto" && quality(a) != quality(b) {
+			return quality(a) > quality(b)
+		}
+		return a.Seeders > b.Seeders
+	})
+	if len(candidates) == 0 {
+		return nil
+	}
+	return &candidates[0]
 }

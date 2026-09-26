@@ -24,6 +24,12 @@ from zipfile import ZipFile, ZIP_DEFLATED
 with ZipFile('dist/ani-qw-extension.zip', 'w', ZIP_DEFLATED) as archive:
     for path in sorted(Path('extension').rglob('*')):
         if path.is_file(): archive.write(path)
+# Unsigned development/signing input; not advertised as a permanent install.
+with ZipFile('dist/ani-qw-firefox-unsigned.zip', 'w', ZIP_DEFLATED) as archive:
+    for path in sorted(Path('extension').rglob('*')):
+        if not path.is_file() or path.name in ('manifest.json','manifest.firefox.json'): continue
+        archive.write(path, path.relative_to('extension'))
+    archive.write('extension/manifest.firefox.json','manifest.json')
 PY
 (cd dist; sha256sum ./*.tar.gz ./*.zip | sed 's|  ./|  |' > SHA256SUMS)
 printf 'Built dist/ani-qw-linux-%s.tar.gz and source/extension archives.\n' "$arch"

@@ -7,6 +7,8 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 version = json.loads((root / "extension/manifest.json").read_text())["version"]
 helper = re.search(r'const appVersion = "([^"]+)"', (root / "cmd/ani-qw/main.go").read_text())[1]
+if json.loads((root / "extension/manifest.firefox.json").read_text())["version"] != version:
+    raise SystemExit("Firefox manifest version differs from Chromium")
 if helper != version:
     raise SystemExit(f"Helper {helper} differs from extension {version}")
 if os.environ.get("GITHUB_REF", "").startswith("refs/tags/") and os.environ["GITHUB_REF"].removeprefix("refs/tags/") != f"v{version}":

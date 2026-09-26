@@ -3,7 +3,6 @@
   "name": "Ani-QW",
   "version": "1.0.0",
   "description": "Stream anime from AniList to mpv on Linux.",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwjGT2ErKS3OF10tXPGUuISO6lHjEDBBQSzQozlVC9MYJADEgukY2799A1OENUQtUl0EXHrlTQ4rS434cr60GRtxqVaQRMDtT9lyfiDgdKBC+alp+B3tLSGSWj3YJdXDT0ZdbYoLQc4ViQgGjZ1tVNdon9F7PLwzCSXspFaT4665hhi9fs4MI+Kd9u/GOTUcKOXMaTFgjNkCK7yJfxKKx51yMhSkZp60UaNrV9fSPOVbsybgK4edERa4W/JoaDsUMiXcv3y9IKbV9hACcGl4dPFmEQ0DawJu74Zb7vfJhU/vjAff/F3uAzm6VmAdAWLBnvZX0MRF0RfyklEBVz5iiKwIDAQAB",
   "permissions": [
     "storage",
     "nativeMessaging",
@@ -13,7 +12,9 @@
     "https://graphql.anilist.co/*"
   ],
   "background": {
-    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ],
     "type": "module"
   },
   "content_scripts": [
@@ -41,5 +42,18 @@
     "32": "icon.png",
     "48": "icon.png",
     "128": "icon.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ani-qw@v4n00.github.io",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "authenticationInfo",
+          "personalCommunications",
+          "websiteActivity"
+        ]
+      }
+    }
   }
 }

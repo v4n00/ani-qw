@@ -5,17 +5,20 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Settings struct {
-	KeepVideo      bool `json:"keepVideo"`
-	Seeding        bool `json:"seeding"`
-	CacheGiB       int  `json:"cacheGiB"`
-	WatchedPercent int  `json:"watchedPercent"`
+	Resolution     string `json:"resolution"`
+	PreferredGroup string `json:"preferredGroup"`
+	KeepVideo      bool   `json:"keepVideo"`
+	Seeding        bool   `json:"seeding"`
+	CacheGiB       int    `json:"cacheGiB"`
+	WatchedPercent int    `json:"watchedPercent"`
 }
 
 func readSettings(dir string) (Settings, error) {
-	s := Settings{CacheGiB: 20, WatchedPercent: 80, Seeding: true, KeepVideo: true}
+	s := Settings{Resolution: "1080p", CacheGiB: 20, WatchedPercent: 80, Seeding: true, KeepVideo: true}
 	b, err := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if os.IsNotExist(err) {
 		return s, nil
@@ -31,6 +34,9 @@ func readSettings(dir string) (Settings, error) {
 	}
 	if s.WatchedPercent < 1 || s.WatchedPercent > 99 {
 		return s, errors.New("watched percentage must be between 1 and 99")
+	}
+	if err := validateQuality(s.Resolution, s.PreferredGroup); err != nil {
+		return s, err
 	}
 	return s, nil
 }
@@ -51,7 +57,7 @@ func (w *worker) savePreferences(r Request) (Settings, error) {
 	if err != nil {
 		return s, err
 	}
-	if value == nil && percent == nil && r.Seeding == nil && r.KeepVideo == nil {
+	if value == nil && percent == nil && r.Seeding == nil && r.KeepVideo == nil && r.Resolution == nil && r.PreferredGroup == nil {
 		return s, nil
 	}
 	if value != nil && (*value < 1 || *value > 1024) {
@@ -72,6 +78,15 @@ func (w *worker) savePreferences(r Request) (Settings, error) {
 	if r.Seeding != nil {
 		s.Seeding = *r.Seeding
 	}
+	if r.Resolution != nil {
+		s.Resolution = *r.Resolution
+	}
+	if r.PreferredGroup != nil {
+		s.PreferredGroup = strings.TrimSpace(*r.PreferredGroup)
+	}
+	if err = validateQuality(s.Resolution, s.PreferredGroup); err != nil {
+		return s, err
+	}
 	if err = atomicJSON(filepath.Join(w.p.State, "settings.json"), s); err != nil {
 		return s, err
 	}
@@ -89,4 +104,14 @@ func (s Settings) cacheLimit() int64 {
 		return 0
 	}
 	return int64(s.CacheGiB) << 30
+}
+
+func validateQuality(resolution, group string) error {
+	if resolution != "auto" && resolution != "1080p" && resolution != "720p" {
+		return errors.New("resolution must be auto, 1080p, or 720p")
+	}
+	if len(group) > 80 || strings.ContainsAny(group, "\r\n\x00") {
+		return errors.New("preferred release group must be at most 80 characters on one line")
+	}
+	return nil
 }

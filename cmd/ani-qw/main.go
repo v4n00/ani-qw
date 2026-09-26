@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const appVersion = "0.1.16"
+const appVersion = "1.0.0"
 const protocolVersion = 1
 const hostName = "co.aniqw.player"
 
@@ -99,18 +99,18 @@ func main() {
 	switch mode {
 	case "worker":
 		err = runWorker()
-	case "install", "uninstall", "doctor":
-		err = installation(mode, os.Args[2:])
+	case "doctor":
+		err = doctor(os.Args[2:])
 	case "version", "--version":
 		fmt.Printf("Ani-QW %s protocol %d\n", appVersion, protocolVersion)
 	case "native":
 		err = runNative()
 	default:
-		// Chromium passes the calling extension origin as argv[1].
-		if mode == extensionOrigin() {
+		// Browsers pass their native-host identity arguments.
+		if nativeInvocation(os.Args[1:]) {
 			err = runNative()
 		} else {
-			err = errors.New("usage: ani-qw [native|worker|install|uninstall|doctor|version]")
+			err = errors.New("usage: ani-qw [native|worker|doctor|version]; use install.sh for installation or removal")
 		}
 	}
 	if err != nil {

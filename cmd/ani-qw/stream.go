@@ -138,13 +138,11 @@ func (w *worker) play(ctx context.Context, sid string, r Request) error {
 		if err != nil {
 			return err
 		}
-		for _, item := range items {
-			if credible(item, r.Media, r.Episode) {
-				v := item
-				r.Torrent = &v
-				break
-			}
+		prefs, err := readSettings(w.p.State)
+		if err != nil {
+			return err
 		}
+		r.Torrent = preferredRelease(items, r.Media, r.Episode, prefs)
 		if r.Torrent == nil {
 			return errManual
 		}

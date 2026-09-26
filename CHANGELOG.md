@@ -2,7 +2,25 @@
 
 Changes are listed newest first. Historical CI-only tags are included so they are not mistaken for feature releases.
 
-## Unreleased
+## Unreleased — 1.0 preparation
+
+- Show anime-page errors inside disabled playback controls; tighten settings inputs and show latest release only on request.
+
+- Compact settings: combined connection/update actions with in-button status, and a smaller resolution selector with HD/FHD badges.
+
+- Firefox manifest, native messaging registration, private storage and unsigned development package; permanent distribution still requires Mozilla signing.
+- Auto / 1080p / 720p preferences and optional preferred release group.
+- Prefill completion scores and notes; save edits without duplicating existing notes or silently overwriting concurrent edits.
+- Show watched / total on home cover strips when no airing countdown is available.
+- Neutral, non-clickable torrent-search placeholder.
+
+- Resume unfinished episodes automatically; removed the Resume/Start over dialog and its empty-popup cancellation state.
+
+- Drag the playback popup by its title bar; removed the separate grip icon.
+
+- Unread notification Play buttons use solid blue; read notifications use the muted tint.
+
+- Setup and removal now run entirely in the Bash installer; removed helper CLI install/uninstall commands and the PATH warning.
 
 ## 0.1.16
 

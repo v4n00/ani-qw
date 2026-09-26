@@ -51,6 +51,7 @@ jobs:
           path: |
             dist/ani-qw-linux-${{ matrix.arch }}.tar.gz
             dist/ani-qw-extension.zip
+            dist/ani-qw-firefox-unsigned.zip
             dist/ani-qw-source.tar.gz
   release:
     if: startsWith(github.ref, 'refs/tags/v')

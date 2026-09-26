@@ -1,3 +1,5 @@
+import { trustedStorage } from './storage.js';
+const chrome = globalThis.browser || globalThis.chrome;
 import { availability, nextEpisode, progressUpdate, helperMedia, playbackLabel } from './core.js';
 import { scoreOptions, validateScore, reviewHistory } from './review.js';
 import { CLIENT_ID, pastedToken } from './auth.js';
@@ -15,7 +17,7 @@ let retryAt = 0;
 let authGeneration = 0;
 const readCache = new Map();
 const readInFlight = new Map();
-const ready = chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+const {ready,storage} = trustedStorage(chrome);
 const mediaFields = `id title { romaji english native } synonyms format status episodes
   nextAiringEpisode { episode airingAt }
   mediaListEntry { id progress status repeat notes }`;
@@ -43,7 +45,7 @@ async function api(query, variables = {}, candidateToken, fresh = false) {
 async function apiRequest(query, variables, candidateToken) {
   const requestGeneration = authGeneration;
   await ready;
-  const token = candidateToken ?? (await chrome.storage.local.get('token')).token;
+  const token = candidateToken ?? (await storage.get('token')).token;
   if (requestGeneration !== authGeneration) throw new Error('AniList account changed. Retry with the connected account.');
   if (!token) throw new Error('Connect AniList in Ani-QW settings first.');
   if (Date.now() < retryAt) throw rateLimitError();
@@ -116,7 +118,7 @@ async function accountMatches(user) {
 function queueSync() {
   syncChain = syncChain.then(async () => {
     if (!pending.size) return;
-    const { user } = await chrome.storage.local.get('user');
+    const { user } = await storage.get('user');
     if (!user || ![...pending.values()].some(c => c.userId === user.id)) return;
     if (Date.now() < retryAt) return;
     const generation = authGeneration;
@@ -130,20 +132,20 @@ function queueSync() {
       const update = progressUpdate(media, c.episode, c);
       if (update) await api('mutation($mediaId:Int!,$progress:Int!,$status:MediaListStatus,$repeat:Int){SaveMediaListEntry(mediaId:$mediaId,progress:$progress,status:$status,repeat:$repeat){id progress}}', update);
       if (update?.status === 'COMPLETED') {
-        const { reviews = [] } = await chrome.storage.local.get('reviews');
+        const { reviews = [] } = await storage.get('reviews');
         if (!reviews.some(r => r.id === c.id)) {
           reviews.push({ id:c.id, userId:viewer.id, mediaId:c.mediaId, title:media.title.english || media.title.romaji, sessionId:c.sessionId });
-          await chrome.storage.local.set({reviews:reviews.slice(-20)});
+          await storage.set({reviews:reviews.slice(-20)});
         }
         broadcast('review', reviews.find(r=>r.id===c.id));
       }
-      const {notificationLaunches={},notificationReads={}}=await chrome.storage.local.get(['notificationLaunches','notificationReads']);
+      const {notificationLaunches={},notificationReads={}}=await storage.get(['notificationLaunches','notificationReads']);
       const launch=notificationLaunches[c.sessionId];
       if(launch?.userId===viewer.id && launch.mediaId===c.mediaId && launch.episode===c.episode){
         const key=`${c.mediaId}:${c.episode}`,reads=notificationReads[viewer.id]||[];
         notificationReads[viewer.id]=[...new Set([...reads,key])].slice(-1000);
         // Persist before acknowledging completion so retries can finish notification handling.
-        await chrome.storage.local.set({notificationReads});
+        await storage.set({notificationReads});
         broadcast('notificationRead',{account:viewer.name,key});
       }
       await rpc('ack', { completionId: c.id, userId: viewer.id });
@@ -160,18 +162,18 @@ async function handle(message, port) {
     case 'hello': {
       record.account = message.account || null;
       if (!native && Date.now() - lastNativeAttempt > 5000) recover().catch(e => broadcast('connection', { error: `${e.message} Run ani-qw doctor if this persists.` }));
-      const stored=await chrome.storage.local.get(['panelPosition','user','notificationReads']);
+      const stored=await storage.get(['panelPosition','user','notificationReads']);
       const reads=stored.user?.name.toLowerCase()===record.account?.toLowerCase()?stored.notificationReads?.[stored.user.id]||[]:[];
       queueSync(); return { state, panelPosition: stored.panelPosition || null, notificationReads:reads };
     }
     case 'reviews': {
-      const { user, reviews = [] } = await chrome.storage.local.get(['user','reviews']);
+      const { user, reviews = [] } = await storage.get(['user','reviews']);
       return user && record.account?.toLowerCase() === user.name.toLowerCase() ? reviews.filter(r=>r.userId===user.id) : [];
     }
     case 'reviewContext': {
       const generation = authGeneration;
       const {Viewer:user} = await api('query { Viewer { id name mediaListOptions { scoreFormat } } }');
-      const {reviews=[]} = await chrome.storage.local.get('reviews');
+      const {reviews=[]} = await storage.get('reviews');
       const review = reviews.find(r=>r.id===message.reviewId && r.userId===user.id);
       const check = () => {
         if (generation !== authGeneration || record.account?.toLowerCase() !== user.name.toLowerCase() || reviewOwners.get(message.reviewId) !== port)
@@ -192,7 +194,7 @@ async function handle(message, port) {
         const generation = authGeneration;
         const { Viewer: user } = await api('query { Viewer { id name } }');
         if (record.account?.toLowerCase() !== user.name.toLowerCase()) throw new Error('AniList account mismatch. Reconnect the correct account.');
-        const {reviews=[]} = await chrome.storage.local.get('reviews');
+        const {reviews=[]} = await storage.get('reviews');
         const review = reviews.find(r=>r.id===message.reviewId && r.userId===user.id);
         if (!review) return {gone:true};
         const owner = reviewOwners.get(review.id);
@@ -201,8 +203,9 @@ async function handle(message, port) {
         if (message.type === 'claimReview') return {claimed:true,...review};
         if (message.type === 'saveReview') {
           const comment = typeof message.comment === 'string' ? message.comment.trim() : '';
+          const editingNotes = typeof message.originalNotes === 'string';
           const hasScore = message.score !== undefined && message.score !== null;
-          if ((!comment && !hasScore) || comment.length > 10000) throw new Error('Enter a score or a comment of up to 10,000 characters.');
+          if ((!comment && !hasScore && !editingNotes) || comment.length > 10000) throw new Error('Enter a score or a comment of up to 10,000 characters.');
           let score;
           if (hasScore) {
             const {Viewer} = await api('query { Viewer { id name mediaListOptions { scoreFormat } } }',{},undefined,true);
@@ -214,7 +217,8 @@ async function handle(message, port) {
           if (generation !== authGeneration || !(await accountMatches(user))) throw new Error('AniList account changed. Reconnect the original account before saving notes.');
           const previous = media.mediaListEntry.notes || '';
           // Retry after a lost response must not append the same comment twice.
-          const notes = previous === comment || previous.endsWith('\n\n'+comment) ? previous : [previous,comment].filter(Boolean).join('\n\n');
+          if (editingNotes && previous !== message.originalNotes && previous !== comment) throw new Error('Notes changed on AniList. Reopen the review before saving to avoid overwriting them.');
+          const notes = editingNotes ? comment : previous === comment || previous.endsWith('\n\n'+comment) ? previous : [previous,comment].filter(Boolean).join('\n\n');
           const variables = {mediaId:review.mediaId};
           if (notes !== previous) variables.notes = notes;
           if (hasScore) variables.score = score;
@@ -223,7 +227,7 @@ async function handle(message, port) {
             await api(`mutation($mediaId:Int!,${args.map(a=>a[0]).join(',')}){SaveMediaListEntry(mediaId:$mediaId,${args.map(a=>a[1]).join(',')}){id}}`,variables);
           }
         }
-        await chrome.storage.local.set({reviews:reviews.filter(r=>r.id!==review.id)});
+        await storage.set({reviews:reviews.filter(r=>r.id!==review.id)});
         reviewOwners.delete(review.id); broadcast('reviewDismissed',{id:review.id}); return {};
       });
       syncChain = task.catch(()=>{}); return task;
@@ -231,15 +235,15 @@ async function handle(message, port) {
     case 'panelPosition': {
       const p = message.position;
       if (!p || !Number.isFinite(p.left) || !Number.isFinite(p.top) || Math.abs(p.left) > 100000 || Math.abs(p.top) > 100000) throw new Error('Invalid panel position');
-      await chrome.storage.local.set({ panelPosition: { left: p.left, top: p.top } }); return {};
+      await storage.set({ panelPosition: { left: p.left, top: p.top } }); return {};
     }
     case 'media': {
-      const [media, { autoSelect = true }, { Viewer: user }] = await Promise.all([getMedia(message.mediaId, !!message.fresh), chrome.storage.local.get('autoSelect'), api('query { Viewer { id name } }')]);
+      const [media, { autoSelect = true }, { Viewer: user }] = await Promise.all([getMedia(message.mediaId, !!message.fresh), storage.get('autoSelect'), api('query { Viewer { id name } }')]);
       if (!media) throw new Error('Anime not found.');
       if (!record.account || user.name.toLowerCase() !== record.account.toLowerCase()) throw new Error('AniList account mismatch. Sign into the account connected in Ani-QW settings.');
       return { media, available: availability(media), next: nextEpisode(media), label: playbackLabel(media), autoSelect };
     }
-    case 'autoSelect': await chrome.storage.local.set({ autoSelect: !!message.value }); return {};
+    case 'autoSelect': await storage.set({ autoSelect: !!message.value }); return {};
     case 'settings': await chrome.runtime.openOptionsPage(); return {};
     case 'resume': case 'search': case 'files': case 'play': {
       const media = await getMedia(message.mediaId);
@@ -252,9 +256,9 @@ async function handle(message, port) {
         startOver: message.startOver === true, query: message.query || '', torrent: message.torrent || null, fileIndex: message.fileIndex ?? null });
       if(message.type==='play' && message.notification===true && result?.sessionId){
         const task=syncChain.then(async()=>{
-          const {notificationLaunches={}}=await chrome.storage.local.get('notificationLaunches');
+          const {notificationLaunches={}}=await storage.get('notificationLaunches');
           notificationLaunches[result.sessionId]={userId:user.id,mediaId:media.id,episode};
-          await chrome.storage.local.set({notificationLaunches:Object.fromEntries(Object.entries(notificationLaunches).slice(-1000))});
+          await storage.set({notificationLaunches:Object.fromEntries(Object.entries(notificationLaunches).slice(-1000))});
         });syncChain=task.catch(()=>{});await task;
       }
       return result;
@@ -281,7 +285,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   (async () => {
     await ready;
     if (message.type === 'settings') {
-      const { user = null } = await chrome.storage.local.get(['clientId', 'user']);
+      const { user = null } = await storage.get(['clientId', 'user']);
       return { user };
     }
     if (message.type === 'updates') return rpc('updates');
@@ -291,16 +295,18 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       if (!Number.isInteger(message.watchedPercent) || message.watchedPercent < 1 || message.watchedPercent > 99) throw new Error('Choose a watched percentage from 1 to 99.');
       if (message.keepVideo !== undefined && typeof message.keepVideo !== 'boolean') throw new Error('Cache retention must be enabled or disabled.');
       if (message.seeding !== undefined && typeof message.seeding !== 'boolean') throw new Error('Sharing must be enabled or disabled.');
-      return rpc('settings', { cacheGiB: message.keepVideo === false ? undefined : message.cacheGiB, watchedPercent: message.watchedPercent, seeding: message.seeding, keepVideo: message.keepVideo });
+      if (message.resolution !== undefined && !['auto','1080p','720p'].includes(message.resolution)) throw new Error('Choose Auto, 1080p, or 720p.');
+      if (message.preferredGroup !== undefined && (typeof message.preferredGroup !== 'string' || message.preferredGroup.length>80 || /[\r\n\0]/.test(message.preferredGroup))) throw new Error('Enter a release group of up to 80 characters.');
+      return rpc('settings', { resolution:message.resolution,preferredGroup:message.preferredGroup,cacheGiB: message.keepVideo === false ? undefined : message.cacheGiB, watchedPercent: message.watchedPercent, seeding: message.seeding, keepVideo: message.keepVideo });
     }
-    if (message.type === 'disconnect') { authGeneration++; await chrome.storage.local.remove(['token', 'user']); return {}; }
+    if (message.type === 'disconnect') { authGeneration++; await storage.remove(['token', 'user']); return {}; }
     if (message.type === 'token') {
       const generation = ++authGeneration;
       const token = pastedToken(message.token);
       const { Viewer: user } = await api('query { Viewer { id name } }', {}, token);
       if (!Number.isInteger(user?.id) || user.id < 1 || typeof user.name !== 'string' || !user.name) throw new Error('AniList did not return a valid account. Please retry.');
       if (generation !== authGeneration) throw new Error('Connection cancelled by a newer account action. Please retry.');
-      await chrome.storage.local.set({ token, clientId: CLIENT_ID, user }); queueSync(); return { user };
+      await storage.set({ token, clientId: CLIENT_ID, user }); queueSync(); return { user };
     }
     throw new Error('Unknown settings request');
   })().then(data => respond({ data }), error => respond({ error: error.message }));

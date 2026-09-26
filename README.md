@@ -3,7 +3,7 @@
 <p align="center"><strong>Your anime list. One Play button. mpv.</strong></p>
 <p align="center"><a href="https://github.com/v4n00/ani-qw/releases">Downloads</a> · <a href="#install">Install</a> · <a href="docs/protocol.md">Protocol</a></p>
 
-Watch from AniList in mpv on Linux. A Chromium extension adds a Play button underneath an anime's Watching / Add to List controls. A small Go process finds a Nyaa torrent and streams the selected video to mpv.
+Watch from AniList in mpv on Linux. A browser extension adds a Play button underneath an anime's Watching / Add to List controls. A small Go process finds a Nyaa torrent and streams the selected video to mpv.
 
 No desktop window, web dashboard, login-time service, or separate torrent client is required. The helper runs only when needed. Playback continues if you close the browser.
 
@@ -25,7 +25,7 @@ See [CHANGELOG.md](CHANGELOG.md) for additions and fixes by version.
 
 ## Install
 
-**Linux · mpv · Chromium** — native browser packages only; Flatpak and Snap are not supported.
+**Linux · mpv · Chromium / Firefox** — native browser packages only; Flatpak and Snap are not supported.
 
 Install prerequisites on Arch:
 
@@ -39,7 +39,7 @@ Install the latest release with:
 curl -fsSL https://raw.githubusercontent.com/v4n00/ani-qw/master/install.sh | bash
 ```
 
-The Bash installer downloads the matching Linux x86_64 or ARM64 release, checks its SHA-256 checksum, installs the helper for your user, and places the extension in `~/.local/share/ani-qw/extension` (or `$XDG_DATA_HOME/ani-qw/extension`). No sudo is used by the installer. It offers detected browsers in an interactive terminal; use `--browser` to select one explicitly. Noninteractive runs default to Chromium. It also tells you if `~/.local/bin` is missing from PATH (browser playback still works).
+The Bash installer downloads the matching Linux x86_64 or ARM64 release, checks its SHA-256 checksum, installs the helper for your user, and places the extension in `~/.local/share/ani-qw/extension` (or `$XDG_DATA_HOME/ani-qw/extension`). No sudo is used by the installer. It offers detected browsers in an interactive terminal; use `--browser` to select one explicitly. Noninteractive runs default to Chromium. Setup and removal are handled only by this script; the helper does not need to be on PATH.
 
 1. Open `chrome://extensions` and enable **Developer mode**.
 2. Choose **Load unpacked** and select `~/.local/share/ani-qw/extension`.
@@ -54,6 +54,8 @@ bash install.sh --browser brave
 bash install.sh --browser vivaldi
 bash install.sh --browser google-chrome-beta
 ```
+
+**Firefox (1.0 development):** run `bash install.sh --from . --browser firefox` after building. See [Firefox setup and signing](docs/firefox.md). Temporary loading works for development; permanent installation requires a Mozilla-signed XPI, which is not provided yet.
 
 Chromium still requires the manual **Load unpacked** step. [Linux supports self-hosted CRX extensions](https://developer.chrome.com/docs/extensions/how-to/distribute/host-on-linux), but this release uses unpacked distribution to retain its stable ID without an available CRX signing key. No browser security settings or enterprise policies are changed.
 
@@ -80,7 +82,7 @@ Authorize the same account that is logged into the AniList website. The access t
 
 - **Play Episode N** fetches your current AniList progress before choosing the next unwatched aired episode. If caught up, it says **Replay Episode N** and replays the last aired episode; after finishing a completed show, it starts at episode 1. Movies show **Play Movie**.
 - The arrow opens an episode picker and the persistent **Automatically select torrent** toggle. Known unaired episodes are disabled; the arrow is hidden for an unaired show. Saving AniList’s progress editor refreshes the extension’s episode target. When availability is unknown, enter an episode number explicitly.
-- Automatic selection prefers seeded, English-translated 1080p releases with a credible title, season, and episode match. If no reliable match exists, the manual chooser opens.
+- Automatic selection uses seeded, English-translated releases with a credible title, season, and episode match. Choose 1080p (default), 720p, or Auto in preferences. Auto prefers 1080p, then 720p, then other resolutions. An optional preferred release group takes priority among eligible matches; without that group, other matches remain available. If no reliable match exists, the manual chooser opens.
 - The manual chooser searches Nyaa and shows resolution, size, seeds, and leechers. Choose a torrent, then its video file. A likely episode is highlighted; unusual filenames or absolute numbering may need your judgment.
 - A movable, collapsible playback panel shows downloading, buffering, playback, and peer statistics. **Choose another torrent** replaces the current selection; **Stop** ends playback. Clicking **Streaming** toggles the panel; navigation minimizes it, and normal closure shows a five-second countdown. After successful watch synchronization, an available next episode gets a **Play next episode** button and a ten-second countdown.
 - Reaching your configured watched percentage (80% by default) of a known video duration marks the episode watched, including seeking beyond that point. One-off episode replays never reduce AniList progress. Completion records survive browser closure and are acknowledged only after a successful AniList update.
@@ -140,6 +142,6 @@ Release automation tests the helper and extension, builds Linux x86_64 and ARM64
 
 ## Architecture and credits
 
-The extension's service worker owns AniList requests and a Chromium Native Messaging port. A tiny native bridge forwards framed messages to a detached Go worker over a private Unix socket. The worker owns the torrent client, a token-protected loopback HTTP video endpoint, and mpv's private JSON IPC connection. Only the video endpoint uses HTTP; there is no HTTP control API.
+The extension's background context (Chromium service worker or Firefox event page) owns AniList requests and a Native Messaging port. A tiny native bridge forwards framed messages to a detached Go worker over a private Unix socket. The worker owns the torrent client, a token-protected loopback HTTP video endpoint, and mpv's private JSON IPC connection. Only the video endpoint uses HTTP; there is no HTTP control API.
 
 See [docs/protocol.md](docs/protocol.md) for the message contract. Inspired by [Seanime](https://github.com/5rahim/seanime) and the supplied Nyaa provider. See [THIRD_PARTY.md](THIRD_PARTY.md) and [LICENSE](LICENSE).

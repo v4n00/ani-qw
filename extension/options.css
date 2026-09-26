@@ -13,3 +13,24 @@
 .preference{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px 0;border-bottom:1px solid #8882}.preference:first-child{padding-top:0}.preference:last-of-type{margin-bottom:22px}.preference label{font-size:15px;font-weight:600}.preference .hint{margin:4px 0;max-width:290px}.preference .inline{flex-shrink:0}.preference input[type=checkbox]{width:22px;height:22px;accent-color:#3db4f2;flex-shrink:0;margin:0}.preference input[type=number]{width:85px!important}#check-updates{width:100%;margin-top:12px}#update-message{font-size:13px}@media(max-width:420px){.preference{gap:12px}.preference .inline{gap:5px}}
 
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#8881;padding:12px;border-radius:5px}pre code{background:none;padding:0}
+
+.preference select,.preference input[type=text]{width:160px;max-width:50%;font:inherit;background:#0b1622;color:#edf1f5;border:1px solid #33445c;border-radius:4px;padding:8px;margin:0}
+
+.status-button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;margin:10px 0 0;min-height:52px}
+.status-button strong{font-size:14px;font-weight:600;flex-shrink:0}
+.status-button span{font-size:12px;text-align:right;color:#b7c9dd;overflow-wrap:anywhere}
+.status-button.error span{color:#efb181}
+.status-button:hover{background:#30445c}
+#connect-fields{padding:16px 0 6px}#connect-fields a{display:inline-block;margin-bottom:12px}
+#release-link{display:inline-block;margin-top:12px;font-size:13px}
+.resolution-control{position:relative;flex:0 0 132px;width:132px;height:38px}
+.preference .resolution-control select{appearance:none;width:100%;max-width:none;height:100%;padding:0 28px 0 10px;color:transparent;cursor:pointer}
+.resolution-control select option{color:#edf1f5;background:#0b1622}
+.resolution-control::after{content:"";position:absolute;right:13px;top:14px;width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);pointer-events:none}
+#resolution-badge{position:absolute;left:10px;top:11px;font-size:9px;font-weight:800;line-height:14px;border:1px solid #7892ac;border-radius:3px;padding:0 3px;pointer-events:none}
+#resolution-value{position:absolute;left:49px;top:8px;font-size:13px;pointer-events:none}#resolution-value.automatic{left:12px}
+select:focus-visible{outline:2px solid #3db4f2;outline-offset:3px}
+@media(prefers-color-scheme:light){.secondary{background:#e4ecf4;color:#33445c}.status-button:hover{background:#d9e5f0}.status-button span{color:#526b83}.status-button.error span{color:#9e4919}.preference select,.preference input[type=text],.resolution-control select option{background:#edf1f5;color:#33445c;border-color:#c2cfdb}.preference .resolution-control select{color:transparent}}
+@media(max-width:480px){.status-button{align-items:flex-start;flex-direction:column;gap:3px}.status-button span{text-align:left}}
+
+.preference #watched-percent{width:58px!important;padding:9px 7px}.preference #cache-size{width:70px!important;padding:9px 7px}
